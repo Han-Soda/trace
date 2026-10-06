@@ -6,7 +6,9 @@
     <string name="open_timeline">Open Timeline file</string>
     <string name="reading_file">Reading… %1$d%%</string>
     <string name="how_to_export_title">Getting your Timeline</string>
-    <string name="how_to_export_steps">In Google Maps on your phone, open Your Timeline, tap ⋮ › Location &amp; privacy settings › Export Timeline data, and save the file. Trace also reads Records.json and Semantic Location History from Google Takeout.</string>
+    <string name="how_to_export_steps">On your phone, open Settings › Location › Location services › Timeline › Export Timeline data, and save the file. Then open it here.</string>
+    <string name="open_timeline_settings">Open Timeline settings</string>
+    <string name="how_to_export_other">Trace also reads the iPhone export, and Records.json and Semantic Location History from Google Takeout, ZIP archives included.</string>
     <string name="import_failed">Couldn’t open the file</string>
     <string name="error_not_timeline">This file isn’t a Google Timeline export.</string>
     <string name="error_no_locations">This file has no location history in it.</string>
@@ -23,6 +25,11 @@
     <string name="earlier">Earlier dates</string>
     <string name="later">Later dates</string>
     <string name="choose_dates">Choose dates</string>
+    <string name="pick_dates">Pick dates</string>
+    <string name="pick_range">Range</string>
+    <string name="pick_days">Days</string>
+    <string name="pick_range_hint">Tap the first and last day.</string>
+    <string name="pick_days_hint">Tap the days to show.</string>
     <string name="preset_day">Day</string>
     <string name="preset_week">Week</string>
     <string name="preset_month">Month</string>
@@ -43,12 +50,39 @@
         <item quantity="other">%d locations</item>
     </plurals>
 
-    <string name="motion">Motion</string>
     <string name="zoom_smoothness">Zoom smoothness</string>
-    <string name="zoom_smoothness_hint">Higher means fewer, slower camera moves.</string>
+    <string name="camera">Camera</string>
+    <string name="camera_follow">Follow</string>
+    <string name="camera_shots">Shots</string>
+    <string name="camera_whole">Whole route</string>
+    <string name="camera_follow_hint">Travels with the trace and zooms out for long trips.</string>
+    <string name="camera_shots_hint">Steady shots that glide on to the next part of the trip.</string>
+    <string name="camera_whole_hint">The whole route stays in view.</string>
+    <string name="pause_at_stops">Pause at stops</string>
+    <string name="zoom_smoothness_hint">Higher means gentler, less frequent zooming.</string>
     <string name="travel_points">Travel points</string>
     <string name="travel_points_value">%1$s of %2$s</string>
     <string name="travel_points_hint">Fewer points draw simpler, smoother lines.</string>
+    <string name="route">Route</string>
+    <string name="edit_points">Remove GPS errors</string>
+    <string name="edit_points_title">Remove GPS errors</string>
+    <string name="edit_points_hint">Tap a point to select it. Tap another to select everything in between.</string>
+    <string name="edit_points_extend">Tap another point to select the whole stretch.</string>
+    <string name="next_likely_error">Next likely error</string>
+    <string name="restore_all">Restore all</string>
+    <string name="undo">Undo</string>
+    <plurals name="likely_errors">
+        <item quantity="one">Show %d likely error</item>
+        <item quantity="other">Show %d likely errors</item>
+    </plurals>
+    <plurals name="remove_points">
+        <item quantity="one">Remove %d point</item>
+        <item quantity="other">Remove %d points</item>
+    </plurals>
+    <plurals name="points_removed">
+        <item quantity="one">%d point removed</item>
+        <item quantity="other">%d points removed</item>
+    </plurals>
 
     <string name="style">Style</string>
     <string name="style_light">Light</string>
@@ -56,7 +90,8 @@
     <string name="style_voyager">Voyager</string>
     <string name="style_paper">Paper</string>
     <string name="style_ink">Ink</string>
-    <string name="needs_key_hint">Light, Dark and Voyager need a free CARTO key. Add it in Settings, or pick Paper or Ink.</string>
+    <string name="style_streets">Streets</string>
+    <string name="needs_key_hint">Light, Dark and Voyager need a free CARTO key. Add it in Settings, or pick Paper, Ink or Streets, which are free.</string>
     <string name="labels">Map labels</string>
     <string name="color">Color</string>
     <string name="pick_color">Custom color</string>
@@ -95,7 +130,7 @@
     <string name="error_export">Something went wrong while making the video.</string>
 
     <string name="map_key">Map key</string>
-    <string name="map_key_explained">Light, Dark and Voyager maps come from CARTO, which needs a free key. Without one, maps show “API KEY REQUIRED”.</string>
+    <string name="map_key_explained">Paper, Ink and Streets are free and need no key. Light, Dark and Voyager come from CARTO, which needs a free key; without one, they show “API KEY REQUIRED”.</string>
     <string name="get_free_key">Get a free key</string>
     <string name="carto_key">CARTO key</string>
     <string name="show_key">Show key</string>
@@ -112,5 +147,5 @@
     <string name="replace">Replace</string>
     <string name="remove">Remove</string>
     <string name="about">About</string>
-    <string name="about_text">Trace %1$s. Maps © OpenStreetMap contributors © CARTO. Coastlines from Natural Earth.</string>
+    <string name="about_text">Trace %1$s. Maps © OpenStreetMap contributors, OpenFreeMap, OpenMapTiles and CARTO. Coastlines from Natural Earth.</string>
 </resources>

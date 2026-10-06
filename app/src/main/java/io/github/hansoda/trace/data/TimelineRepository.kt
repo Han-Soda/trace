@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.google.gson.stream.MalformedJsonException
+import io.github.hansoda.trace.route.Exclusions
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FilterInputStream
@@ -23,7 +24,22 @@ data class TimelineInfo(val name: String, val points: Int, val importedAt: Long)
  */
 class TimelineRepository(private val context: Context) {
     private val file = File(context.filesDir, "timeline.bin")
+    private val removedFile = File(context.filesDir, "removed.txt")
     private val prefs = context.getSharedPreferences("timeline", Context.MODE_PRIVATE)
+
+    /** Fixes the person removed as GPS errors. They stay removed when a newer export is imported. */
+    fun removed(): Exclusions = runCatching { if (removedFile.exists()) Exclusions.decode(removedFile.readText()) else Exclusions.NONE }
+        .getOrDefault(Exclusions.NONE)
+
+    suspend fun saveRemoved(removed: Exclusions) = withContext(Dispatchers.IO) {
+        if (removed.isEmpty) {
+            removedFile.delete()
+        } else {
+            val partial = File(removedFile.path + ".part")
+            partial.writeText(removed.encode())
+            partial.renameTo(removedFile)
+        }
+    }
 
     fun info(): TimelineInfo? {
         if (!file.exists()) return null
@@ -66,6 +82,7 @@ class TimelineRepository(private val context: Context) {
 
     fun clear() {
         file.delete()
+        removedFile.delete()
         prefs.edit().clear().apply()
     }
 

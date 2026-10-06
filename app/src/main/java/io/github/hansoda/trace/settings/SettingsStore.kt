@@ -1,7 +1,9 @@
 package io.github.hansoda.trace.settings
 
 import android.content.Context
+import io.github.hansoda.trace.motion.CameraMode
 import io.github.hansoda.trace.render.MapStyle
+import io.github.hansoda.trace.route.DaySelection
 import java.util.Locale
 
 /** Keeps [TraceSettings] in shared preferences. */
@@ -11,9 +13,10 @@ class SettingsStore(context: Context) {
     fun load(): TraceSettings {
         val defaults = TraceSettings()
         return TraceSettings(
-            rangeStart = prefs.getLong(RANGE_START, Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE },
-            rangeEnd = prefs.getLong(RANGE_END, Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE },
+            days = DaySelection.decode(prefs.getString(DAYS, null)) ?: legacyRange(),
+            camera = CameraMode.fromId(prefs.getString(CAMERA, null)),
             smoothness = prefs.getFloat(SMOOTHNESS, defaults.smoothness).coerceIn(0f, 1f),
+            pauseAtStops = prefs.getBoolean(PAUSE, defaults.pauseAtStops),
             pointsFraction = prefs.getFloat(POINTS, defaults.pointsFraction).coerceIn(0f, 1f),
             style = MapStyle.fromId(prefs.getString(STYLE, null)),
             labels = prefs.getBoolean(LABELS, defaults.labels),
@@ -35,15 +38,20 @@ class SettingsStore(context: Context) {
         )
     }
 
+    /** Dates saved by the first version, which only knew single ranges. */
+    private fun legacyRange(): DaySelection? {
+        val start = prefs.getLong(RANGE_START, Long.MIN_VALUE)
+        val end = prefs.getLong(RANGE_END, Long.MIN_VALUE)
+        return if (start == Long.MIN_VALUE || end == Long.MIN_VALUE) null else DaySelection.range(start, end)
+    }
+
     fun save(settings: TraceSettings) {
         prefs.edit().apply {
-            if (settings.rangeStart != null && settings.rangeEnd != null) {
-                putLong(RANGE_START, settings.rangeStart)
-                putLong(RANGE_END, settings.rangeEnd)
-            } else {
-                remove(RANGE_START)
-                remove(RANGE_END)
-            }
+            remove(RANGE_START)
+            remove(RANGE_END)
+            if (settings.days != null) putString(DAYS, settings.days.encode()) else remove(DAYS)
+            putString(CAMERA, settings.camera.id)
+            putBoolean(PAUSE, settings.pauseAtStops)
             putFloat(SMOOTHNESS, settings.smoothness)
             putFloat(POINTS, settings.pointsFraction)
             putString(STYLE, settings.style.id)
@@ -68,6 +76,9 @@ class SettingsStore(context: Context) {
     private companion object {
         const val RANGE_START = "range_start"
         const val RANGE_END = "range_end"
+        const val DAYS = "days"
+        const val CAMERA = "camera"
+        const val PAUSE = "pause_at_stops"
         const val SMOOTHNESS = "smoothness"
         const val POINTS = "points"
         const val STYLE = "style"

@@ -2,6 +2,8 @@ package io.github.hansoda.trace.ui
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
+import io.github.hansoda.trace.route.DayActivity
+import io.github.hansoda.trace.route.DaySelection
 import io.github.hansoda.trace.settings.TraceSettings
 
 enum class RangePreset { DAY, WEEK, MONTH, YEAR, ALL }
@@ -33,8 +35,8 @@ sealed interface KeyTest {
 data class RangeSummary(
     val label: String,
     val preset: RangePreset?,
-    val startDay: Long,
-    val endDay: Long,
+    val selection: DaySelection,
+    /** First and last day with location history. */
     val firstDay: Long,
     val lastDay: Long,
     val distance: String,
@@ -42,9 +44,9 @@ data class RangeSummary(
     val availablePoints: Int,
     val selectedPoints: Int,
 ) {
-    val days: Int get() = (endDay - startDay + 1).toInt()
-    val canGoBack: Boolean get() = startDay > firstDay
-    val canGoForward: Boolean get() = endDay < lastDay
+    val days: Int get() = selection.dayCount
+    val canGoBack: Boolean get() = selection.first > firstDay
+    val canGoForward: Boolean get() = selection.last < lastDay
     val empty: Boolean get() = availablePoints < 2
 }
 
@@ -62,6 +64,10 @@ data class ScreenState(
     val cacheSize: String,
     val keyTest: KeyTest,
     val version: String,
+    /** Distance per day, for the calendar; null until worked out. */
+    val activity: DayActivity?,
+    /** Fixes removed by hand as GPS errors, across the whole history. */
+    val removedPoints: Int,
 )
 
 /** Everything the screen can ask for. */
@@ -70,7 +76,9 @@ class ScreenActions(
     val update: ((TraceSettings) -> TraceSettings) -> Unit,
     val preset: (RangePreset) -> Unit,
     val shiftRange: (Int) -> Unit,
-    val setRange: (startDay: Long, endDay: Long) -> Unit,
+    val setDays: (DaySelection) -> Unit,
+    val openTimelineExport: () -> Unit,
+    val restorePoints: () -> Unit,
     val exportVideo: () -> Unit,
     val saveImage: () -> Unit,
     val cancelExport: () -> Unit,

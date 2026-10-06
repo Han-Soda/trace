@@ -30,3 +30,11 @@ fun MapPreview(plan: Plan, look: Look, overlay: Overlay, tiles: TileStore, secon
         }
     }
 }
+
+/** A canvas that draws with android.graphics, like the renderer, in view pixels. */
+@Composable
+fun NativeCanvas(modifier: Modifier, draw: (canvas: android.graphics.Canvas, width: Int, height: Int) -> Unit) {
+    Canvas(modifier) {
+        drawIntoCanvas { canvas -> draw(canvas.nativeCanvas, size.width.toInt(), size.height.toInt()) }
+    }
+}

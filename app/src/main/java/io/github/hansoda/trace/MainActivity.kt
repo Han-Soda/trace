@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -23,6 +24,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import io.github.hansoda.trace.ui.ExportState
 import io.github.hansoda.trace.ui.MapPreview
+import io.github.hansoda.trace.ui.RouteEditor
 import io.github.hansoda.trace.ui.ScreenActions
 import io.github.hansoda.trace.ui.ScreenState
 import io.github.hansoda.trace.ui.TraceScreen
@@ -66,6 +68,8 @@ class MainActivity : ComponentActivity() {
         val overlay by viewModel.overlay.collectAsState()
         val keyTest by viewModel.keyTest.collectAsState()
         val cacheSize by viewModel.cacheSize.collectAsState()
+        val activity by viewModel.activity.collectAsState()
+        val removedPoints by viewModel.removedPoints.collectAsState()
 
         val openFiles = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
             viewModel.import(uris)
@@ -91,7 +95,9 @@ class MainActivity : ComponentActivity() {
                 update = viewModel::update,
                 preset = viewModel::preset,
                 shiftRange = viewModel::shiftRange,
-                setRange = viewModel::setRange,
+                setDays = viewModel::setDays,
+                openTimelineExport = { openTimelineExport() },
+                restorePoints = viewModel::restorePoints,
                 exportVideo = { withStorage(image = false) },
                 saveImage = { withStorage(image = true) },
                 cancelExport = viewModel::cancelExport,
@@ -119,6 +125,8 @@ class MainActivity : ComponentActivity() {
             cacheSize = cacheSize,
             keyTest = keyTest,
             version = BuildConfig.VERSION_NAME,
+            activity = activity,
+            removedPoints = removedPoints,
         )
 
         val view = LocalView.current
@@ -128,8 +136,45 @@ class MainActivity : ComponentActivity() {
             onDispose { view.keepScreenOn = false }
         }
 
-        TraceScreen(state, actions) { modifier, seconds ->
-            plan?.let { MapPreview(it, look, overlay, viewModel.tiles, seconds, modifier) }
+        TraceScreen(
+            state,
+            actions,
+            preview = { modifier, seconds -> plan?.let { MapPreview(it, look, overlay, viewModel.tiles, seconds, modifier) } },
+            routeEditor = { onClose ->
+                val data by viewModel.range.collectAsState()
+                val suspects by viewModel.suspects.collectAsState()
+                val canUndo by viewModel.canUndo.collectAsState()
+                RouteEditor(
+                    data, suspects, look, viewModel.tiles, removedPoints, canUndo,
+                    onRemove = viewModel::removePoints,
+                    onUndo = viewModel::undoRemoval,
+                    onRestoreAll = viewModel::restorePoints,
+                    onClose = onClose,
+                )
+            },
+        )
+    }
+
+    /**
+     * Opens the phone's Timeline settings, where "Export Timeline data" is. Android has no
+     * public link to that page, so this tries Google's own settings screen, then falls back to
+     * Location settings, one tap away from Timeline.
+     */
+    private fun openTimelineExport() {
+        val candidates = listOf(
+            Intent(TIMELINE_SETTINGS).setPackage(GOOGLE_PLAY_SERVICES),
+            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS),
+            Intent(Settings.ACTION_SETTINGS),
+        )
+        for (intent in candidates) {
+            try {
+                startActivity(intent)
+                return
+            } catch (_: ActivityNotFoundException) {
+                // Try the next one.
+            } catch (_: SecurityException) {
+                // Not exported on this phone; try the next one.
+            }
         }
     }
 
@@ -166,5 +211,7 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         val STORAGE = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        const val TIMELINE_SETTINGS = "com.google.android.gms.location.settings.LOCATION_HISTORY"
+        const val GOOGLE_PLAY_SERVICES = "com.google.android.gms"
     }
 }

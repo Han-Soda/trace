@@ -27,9 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DateRangePicker
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -37,12 +35,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,6 +64,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import io.github.hansoda.trace.R
+import io.github.hansoda.trace.motion.CameraMode
 import io.github.hansoda.trace.render.MapStyle
 import io.github.hansoda.trace.route.PointBudget
 import io.github.hansoda.trace.settings.LineWidth
@@ -80,8 +79,14 @@ import kotlin.math.roundToInt
  * export. [preview] draws the video frame at the given second.
  */
 @Composable
-fun TraceScreen(state: ScreenState, actions: ScreenActions, preview: @Composable (Modifier, Float) -> Unit) {
+fun TraceScreen(
+    state: ScreenState,
+    actions: ScreenActions,
+    preview: @Composable (Modifier, Float) -> Unit,
+    routeEditor: @Composable (onClose: () -> Unit) -> Unit,
+) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var editing by rememberSaveable { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             TopBar(showSettings = state.hasTimeline, onSettings = { showSettings = true })
@@ -89,7 +94,7 @@ fun TraceScreen(state: ScreenState, actions: ScreenActions, preview: @Composable
                 when {
                     state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                     !state.hasTimeline -> Welcome(state.import, actions)
-                    else -> Editor(state, actions, preview)
+                    else -> Editor(state, actions, preview, onEditRoute = { editing = true })
                 }
             }
             if (state.hasTimeline && !state.loading) ExportBar(state, actions)
@@ -97,6 +102,7 @@ fun TraceScreen(state: ScreenState, actions: ScreenActions, preview: @Composable
     }
 
     if (showSettings) SettingsSheet(state, actions) { showSettings = false }
+    if (editing && state.hasTimeline) routeEditor { editing = false }
     ImportDialogs(state, actions)
     ExportDialogs(state.export, actions)
 }
@@ -170,6 +176,16 @@ private fun Welcome(import: ImportState, actions: ScreenActions) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                FilledTonalButton(onClick = actions.openTimelineExport, modifier = Modifier.padding(top = 14.dp)) {
+                    Icon(TraceIcons.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(stringResource(R.string.open_timeline_settings), modifier = Modifier.padding(start = 8.dp))
+                }
+                Text(
+                    stringResource(R.string.how_to_export_other),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
             }
         }
     }
@@ -180,7 +196,7 @@ private fun Welcome(import: ImportState, actions: ScreenActions) {
 // region Editor
 
 @Composable
-private fun Editor(state: ScreenState, actions: ScreenActions, preview: @Composable (Modifier, Float) -> Unit) {
+private fun Editor(state: ScreenState, actions: ScreenActions, preview: @Composable (Modifier, Float) -> Unit, onEditRoute: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val width = maxWidth
         val height = maxHeight
@@ -196,7 +212,7 @@ private fun Editor(state: ScreenState, actions: ScreenActions, preview: @Composa
                         .imePadding()
                         .verticalScroll(rememberScrollState())
                         .padding(end = 20.dp, bottom = 24.dp),
-                ) { Controls(state, actions) }
+                ) { Controls(state, actions, onEditRoute) }
             }
         } else {
             Column(
@@ -209,7 +225,7 @@ private fun Editor(state: ScreenState, actions: ScreenActions, preview: @Composa
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 PreviewPane(state, preview, maxWidth = width - 40.dp, maxHeight = height * 0.56f)
-                Controls(state, actions)
+                Controls(state, actions, onEditRoute)
             }
         }
     }
@@ -279,21 +295,21 @@ private fun PreviewPane(state: ScreenState, preview: @Composable (Modifier, Floa
 }
 
 @Composable
-private fun Controls(state: ScreenState, actions: ScreenActions) {
+private fun Controls(state: ScreenState, actions: ScreenActions, onEditRoute: () -> Unit) {
     val s = state.settings
     Column(Modifier.fillMaxWidth()) {
-        state.range?.let { Dates(it, actions) }
-        Motion(state, actions)
+        state.range?.let { Dates(it, state, actions) }
+        Camera(s, actions)
+        RouteSection(state, actions, onEditRoute)
         Style(s, actions)
         TextOptions(state, actions)
         VideoOptions(s, actions)
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Dates(range: RangeSummary, actions: ScreenActions) {
-    var picking by remember { mutableStateOf(false) }
+private fun Dates(range: RangeSummary, state: ScreenState, actions: ScreenActions) {
+    var picking by rememberSaveable { mutableStateOf(false) }
     SectionTitle(stringResource(R.string.dates))
     Row(verticalAlignment = Alignment.CenterVertically) {
         FilledTonalIconButton(onClick = { actions.shiftRange(-1) }, enabled = range.canGoBack) {
@@ -321,6 +337,12 @@ private fun Dates(range: RangeSummary, actions: ScreenActions) {
             RangePreset.YEAR to R.string.preset_year,
             RangePreset.ALL to R.string.preset_all,
         )
+        FilterChip(
+            selected = range.preset == null,
+            onClick = { picking = true },
+            label = { Text(stringResource(R.string.pick_dates)) },
+            leadingIcon = { Icon(TraceIcons.Calendar, contentDescription = null, modifier = Modifier.size(18.dp)) },
+        )
         for ((preset, name) in names) {
             FilterChip(selected = range.preset == preset, onClick = { actions.preset(preset) }, label = { Text(stringResource(name)) })
         }
@@ -337,42 +359,58 @@ private fun Dates(range: RangeSummary, actions: ScreenActions) {
     )
 
     if (picking) {
-        val state = rememberDateRangePickerState(
-            initialSelectedStartDateMillis = range.startDay * DAY_MS,
-            initialSelectedEndDateMillis = range.endDay * DAY_MS,
-            // The picker rejects selections outside its years, and shifted ranges can leave the data.
-            yearRange = yearOf(minOf(range.firstDay, range.startDay))..yearOf(maxOf(range.lastDay, range.endDay)),
-        )
-        DatePickerDialog(
-            onDismissRequest = { picking = false },
-            confirmButton = {
-                TextButton(
-                    enabled = state.selectedStartDateMillis != null,
-                    onClick = {
-                        val start = state.selectedStartDateMillis
-                        if (start != null) actions.setRange(start / DAY_MS, (state.selectedEndDateMillis ?: start) / DAY_MS)
-                        picking = false
-                    },
-                ) { Text(stringResource(R.string.apply)) }
+        CalendarSheet(
+            selection = range.selection,
+            activity = state.activity,
+            firstDay = range.firstDay,
+            lastDay = range.lastDay,
+            onApply = { chosen ->
+                actions.setDays(chosen)
+                picking = false
             },
-            dismissButton = { TextButton(onClick = { picking = false }) { Text(stringResource(R.string.cancel)) } },
-        ) {
-            DateRangePicker(state = state, modifier = Modifier.weight(1f), showModeToggle = false)
-        }
+            onDismiss = { picking = false },
+        )
     }
 }
 
 @Composable
-private fun Motion(state: ScreenState, actions: ScreenActions) {
-    val s = state.settings
-    SectionTitle(stringResource(R.string.motion))
-    LabeledSlider(
-        label = stringResource(R.string.zoom_smoothness),
-        value = "${(s.smoothness * 100).roundToInt()}%",
-        position = s.smoothness,
-        onChange = { value -> actions.update { it.copy(smoothness = (value * 20).roundToInt() / 20f) } },
-        hint = stringResource(R.string.zoom_smoothness_hint),
+private fun Camera(s: TraceSettings, actions: ScreenActions) {
+    SectionTitle(stringResource(R.string.camera))
+    val names = mapOf(
+        CameraMode.FOLLOW to stringResource(R.string.camera_follow),
+        CameraMode.SHOTS to stringResource(R.string.camera_shots),
+        CameraMode.WHOLE to stringResource(R.string.camera_whole),
     )
+    Choice(CameraMode.entries, s.camera, { names.getValue(it) }, { camera -> actions.update { it.copy(camera = camera) } })
+    Text(
+        stringResource(
+            when (s.camera) {
+                CameraMode.FOLLOW -> R.string.camera_follow_hint
+                CameraMode.SHOTS -> R.string.camera_shots_hint
+                CameraMode.WHOLE -> R.string.camera_whole_hint
+            },
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 6.dp),
+    )
+    if (s.camera != CameraMode.WHOLE) {
+        LabeledSlider(
+            label = stringResource(R.string.zoom_smoothness),
+            value = "${(s.smoothness * 100).roundToInt()}%",
+            position = s.smoothness,
+            onChange = { value -> actions.update { it.copy(smoothness = (value * 20).roundToInt() / 20f) } },
+            hint = stringResource(R.string.zoom_smoothness_hint),
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+    SwitchRow(stringResource(R.string.pause_at_stops), s.pauseAtStops, { on -> actions.update { it.copy(pauseAtStops = on) } })
+}
+
+@Composable
+private fun RouteSection(state: ScreenState, actions: ScreenActions, onEditRoute: () -> Unit) {
+    val s = state.settings
+    SectionTitle(stringResource(R.string.route))
     val range = state.range
     val available = range?.availablePoints ?: 0
     val count = if (available > 0) PointBudget.count(s.pointsFraction, available) else 0
@@ -384,6 +422,21 @@ private fun Motion(state: ScreenState, actions: ScreenActions) {
         onChange = { value -> actions.update { it.copy(pointsFraction = value) } },
         hint = stringResource(R.string.travel_points_hint),
     )
+    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(onClick = onEditRoute, enabled = available > 0) {
+            Icon(TraceIcons.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(stringResource(R.string.edit_points), modifier = Modifier.padding(start = 8.dp))
+        }
+        if (state.removedPoints > 0) {
+            Text(
+                pluralStringResource(R.plurals.points_removed, state.removedPoints, state.removedPoints),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f).padding(start = 12.dp),
+            )
+            TextButton(onClick = actions.restorePoints) { Text(stringResource(R.string.restore_all)) }
+        }
+    }
 }
 
 @Composable
@@ -392,11 +445,12 @@ private fun Style(s: TraceSettings, actions: ScreenActions) {
     SectionTitle(stringResource(R.string.style))
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = RowGap) {
         val names = mapOf(
+            MapStyle.PAPER to R.string.style_paper,
+            MapStyle.INK to R.string.style_ink,
+            MapStyle.STREETS to R.string.style_streets,
             MapStyle.LIGHT to R.string.style_light,
             MapStyle.DARK to R.string.style_dark,
             MapStyle.VOYAGER to R.string.style_voyager,
-            MapStyle.PAPER to R.string.style_paper,
-            MapStyle.INK to R.string.style_ink,
         )
         for ((style, name) in names) {
             FilterChip(
@@ -425,9 +479,7 @@ private fun Style(s: TraceSettings, actions: ScreenActions) {
             modifier = Modifier.padding(top = 6.dp),
         )
     }
-    if (s.style.usesCarto) {
-        SwitchRow(stringResource(R.string.labels), s.labels, { on -> actions.update { it.copy(labels = on) } })
-    }
+    SwitchRow(stringResource(R.string.labels), s.labels, { on -> actions.update { it.copy(labels = on) } })
 
     Text(stringResource(R.string.color), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -590,6 +642,3 @@ private fun ImportDialogs(state: ScreenState, actions: ScreenActions) {
 
 // endregion
 
-private const val DAY_MS = 86_400_000L
-
-private fun yearOf(epochDay: Long): Int = java.time.LocalDate.ofEpochDay(epochDay).year

@@ -1,11 +1,8 @@
 package io.github.hansoda.trace.render
 
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.Rect
-import android.graphics.RectF
 import android.graphics.Typeface
 import io.github.hansoda.trace.motion.Plan
 import kotlin.math.abs
@@ -18,7 +15,7 @@ import kotlin.math.sin
  * preview and the exported video, so what you see is what you get.
  */
 class FrameRenderer {
-    private val tilePaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+    private val map = MapPainter()
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -27,8 +24,6 @@ class FrameRenderer {
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val trail = Path()
-    private val source = Rect()
-    private val target = RectF()
 
     fun draw(canvas: Canvas, width: Int, height: Int, plan: Plan, frame: Int, look: Look, overlay: Overlay, tiles: TileSource?) {
         val f = frame.coerceIn(0, plan.frameCount - 1)
@@ -39,15 +34,7 @@ class FrameRenderer {
 
         fillPaint.color = look.map.background
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
-        if (tiles != null) {
-            val zoom = TileMath.zoom(cameraWidth, width)
-            val opacity = if (look.map.isPlain) {
-                ((TileMath.PLAIN_FADE_END - zoom) / (TileMath.PLAIN_FADE_END - TileMath.PLAIN_FADE_START)).toFloat().coerceIn(0f, 1f)
-            } else {
-                1f
-            }
-            if (opacity > 0f) drawTiles(canvas, width, height, plan, f, look.map.tileSet(look.labels), tiles, opacity)
-        }
+        if (tiles != null) map.draw(canvas, width, height, plan.cameraX[f], plan.cameraY[f], cameraWidth, look.map.tileSet(look.labels), tiles)
 
         val shortSide = min(width, height).toFloat()
         val lineWidth = max(1.5f, shortSide * 0.0065f * look.lineWidth)
@@ -56,49 +43,7 @@ class FrameRenderer {
         if (look.showPoints) drawPoints(canvas, plan, f, left, top, scale, width, height, look, lineWidth)
         drawMarkers(canvas, plan, f, left, top, scale, look, lineWidth)
         drawOverlay(canvas, width, height, plan, f, look, overlay)
-        if (look.map.usesCarto) drawAttribution(canvas, width, height, look)
-    }
-
-    private fun drawTiles(canvas: Canvas, width: Int, height: Int, plan: Plan, f: Int, set: String, tiles: TileSource, layerOpacity: Float) {
-        val cameraWidth = plan.cameraWidth[f]
-        val aspect = width.toDouble() / height
-        val scale = width / cameraWidth
-        val left = plan.cameraX[f] - cameraWidth / 2
-        val top = plan.cameraY[f] - cameraWidth / aspect / 2
-        for ((z, opacity) in TileMath.levels(TileMath.zoom(cameraWidth, width))) {
-            tilePaint.alpha = (opacity * layerOpacity * 255).toInt()
-            val count = 1 shl z
-            TileMath.forEachTile(z, plan.cameraX[f], plan.cameraY[f], cameraWidth, aspect) { tileX, tileY, wrappedX ->
-                // Snap edges to whole pixels so neighbouring tiles meet without hairline gaps.
-                val x0 = Math.round((tileX.toDouble() / count - left) * scale).toFloat()
-                val x1 = Math.round(((tileX + 1).toDouble() / count - left) * scale).toFloat()
-                val y0 = Math.round((tileY.toDouble() / count - top) * scale).toFloat()
-                val y1 = Math.round(((tileY + 1).toDouble() / count - top) * scale).toFloat()
-                target.set(x0, y0, x1, y1)
-                drawTileOrAncestor(canvas, TileKey(set, z, wrappedX, tileY), tiles)
-            }
-        }
-        tilePaint.alpha = 255
-    }
-
-    /** Draws the tile, or a blown-up piece of a lower-zoom tile while it loads. */
-    private fun drawTileOrAncestor(canvas: Canvas, key: TileKey, tiles: TileSource) {
-        tiles.tile(key)?.let {
-            canvas.drawBitmap(it, null, target, tilePaint)
-            return
-        }
-        for (up in 1..4) {
-            val z = key.z - up
-            if (z < 0) return
-            val parent = tiles.tile(TileKey(key.set, z, key.x shr up, key.y shr up)) ?: continue
-            val pieces = 1 shl up
-            val size = parent.width / pieces
-            val px = (key.x and (pieces - 1)) * size
-            val py = (key.y and (pieces - 1)) * size
-            source.set(px, py, px + size, py + size)
-            canvas.drawBitmap(parent, source, target, tilePaint)
-            return
-        }
+        drawAttribution(canvas, width, height, look)
     }
 
     private fun buildTrail(plan: Plan, f: Int, left: Double, top: Double, scale: Double, width: Int, height: Int, margin: Float) {
@@ -106,8 +51,12 @@ class FrameRenderer {
         val route = plan.route
         val last = plan.headSegment[f]
         val clip = Clip(width, height, margin)
-        for (i in 0..last) clip.add(trail, ((route.x[i] - left) * scale).toFloat(), ((route.y[i] - top) * scale).toFloat(), false)
-        clip.add(trail, ((plan.headX[f] - left) * scale).toFloat(), ((plan.headY[f] - top) * scale).toFloat(), true)
+        for (i in 0..last) {
+            // Separate days aren't joined up.
+            if (route.breakBefore[i]) clip.lift()
+            clip.add(trail, ((route.x[i] - left) * scale).toFloat(), ((route.y[i] - top) * scale).toFloat(), false)
+        }
+        if (!plan.gliding(f)) clip.add(trail, ((plan.headX[f] - left) * scale).toFloat(), ((plan.headY[f] - top) * scale).toFloat(), true)
     }
 
     private fun drawTrail(canvas: Canvas, look: Look, lineWidth: Float) {
@@ -135,6 +84,7 @@ class FrameRenderer {
         var lastX = Float.NaN
         var lastY = Float.NaN
         for (i in 0..plan.headSegment[f]) {
+            if (route.breakBefore[i]) lastX = Float.NaN
             val x = ((route.x[i] - left) * scale).toFloat()
             val y = ((route.y[i] - top) * scale).toFloat()
             if (x < -radius || y < -radius || x > width + radius || y > height + radius) continue
@@ -152,15 +102,18 @@ class FrameRenderer {
         val route = plan.route
         val ring = if (look.map.isDark) 0xFF111214.toInt() else 0xFFFFFFFF.toInt()
 
-        // Start: a small hollow ring.
-        val startX = ((route.x[0] - left) * scale).toFloat()
-        val startY = ((route.y[0] - top) * scale).toFloat()
-        fillPaint.color = ring
-        canvas.drawCircle(startX, startY, lineWidth * 1.6f, fillPaint)
-        fillPaint.color = look.routeColor
-        canvas.drawCircle(startX, startY, lineWidth * 1.15f, fillPaint)
-        fillPaint.color = ring
-        canvas.drawCircle(startX, startY, lineWidth * 0.55f, fillPaint)
+        // A small hollow ring where the route, and each separate day, starts.
+        for (i in 0..plan.headSegment[f]) {
+            if (i > 0 && !route.breakBefore[i]) continue
+            val startX = ((route.x[i] - left) * scale).toFloat()
+            val startY = ((route.y[i] - top) * scale).toFloat()
+            fillPaint.color = ring
+            canvas.drawCircle(startX, startY, lineWidth * 1.6f, fillPaint)
+            fillPaint.color = look.routeColor
+            canvas.drawCircle(startX, startY, lineWidth * 1.15f, fillPaint)
+            fillPaint.color = ring
+            canvas.drawCircle(startX, startY, lineWidth * 0.55f, fillPaint)
+        }
 
         // Head: a dot with a softly breathing halo.
         val x = ((plan.headX[f] - left) * scale).toFloat()
@@ -224,7 +177,7 @@ class FrameRenderer {
         textPaint.typeface = BODY_FACE
         textPaint.textSize = size
         textPaint.color = if (look.map.isDark) 0x99FFFFFF.toInt() else 0x99000000.toInt()
-        val text = "© OpenStreetMap  © CARTO"
+        val text = look.map.attribution
         val margin = size * 0.9f
         canvas.drawText(text, width - margin - textPaint.measureText(text), height - margin, textPaint)
     }
@@ -244,6 +197,12 @@ class FrameRenderer {
         private var penDown = false
         private var drawnX = 0f
         private var drawnY = 0f
+
+        /** Starts a new line at the next point instead of joining it to the last. */
+        fun lift() {
+            hasPrevious = false
+            penDown = false
+        }
 
         fun add(path: Path, x: Float, y: Float, force: Boolean) {
             val code = outcode(x, y)

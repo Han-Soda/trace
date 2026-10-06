@@ -78,7 +78,6 @@ class VideoExporter(private val context: Context, private val tiles: TileStore) 
         plan: Plan, frames: IntRange, width: Int, height: Int, look: Look,
         onProgress: (Progress) -> Unit,
     ) {
-        if (!look.map.usesCarto) return
         val set = look.map.tileSet(look.labels)
         val aspect = width.toDouble() / height
         val keys = LinkedHashSet<TileKey>()
@@ -91,8 +90,9 @@ class VideoExporter(private val context: Context, private val tiles: TileStore) 
             }
         }
         val failed = tiles.prefetch(keys) { done, total -> onProgress(Progress.Map(done, total)) }
-        if (keys.isNotEmpty() && failed == keys.size) {
-            throw IOException("Couldn't download the map. Check the connection, or choose Paper or Ink, which work offline.")
+        // The free styles fall back to coastlines; CARTO styles would be blank.
+        if (look.map.usesCarto && keys.isNotEmpty() && failed == keys.size) {
+            throw IOException("Couldn't download the map. Check the connection, or choose Paper, Ink or Streets.")
         }
     }
 }

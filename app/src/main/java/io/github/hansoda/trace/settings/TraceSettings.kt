@@ -1,6 +1,8 @@
 package io.github.hansoda.trace.settings
 
+import io.github.hansoda.trace.motion.CameraMode
 import io.github.hansoda.trace.render.MapStyle
+import io.github.hansoda.trace.route.DaySelection
 import io.github.hansoda.trace.route.PointBudget
 
 enum class VideoFormat(val id: String, private val across: Int, private val down: Int) {
@@ -68,10 +70,12 @@ object Palette {
 
 /** Everything the person chooses, remembered between launches. */
 data class TraceSettings(
-    /** Chosen dates as local epoch days, inclusive, or null for the latest week. */
-    val rangeStart: Long? = null,
-    val rangeEnd: Long? = null,
+    /** Chosen days, or null for the latest week. */
+    val days: DaySelection? = null,
+    val camera: CameraMode = CameraMode.FOLLOW,
     val smoothness: Float = 0.6f,
+    /** Off, the dot never stops moving. */
+    val pauseAtStops: Boolean = false,
     val pointsFraction: Float = PointBudget.DEFAULT_FRACTION,
     // Paper needs no map key, so the first video looks right straight away.
     val style: MapStyle = MapStyle.PAPER,

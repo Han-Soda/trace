@@ -7,8 +7,8 @@ import android.graphics.Path
 import kotlin.math.abs
 
 /**
- * Draws Paper and Ink tiles on the device from [LandShapes], so those styles work offline and
- * without a map key.
+ * Draws coastlines and lakes from the bundled [LandShapes], so the free styles still show the
+ * world's outline when their vector tiles can't be downloaded.
  */
 class PlainTiles(private val shapes: () -> LandShapes?) : TileSource {
     private val cache = object : LinkedHashMap<TileKey, Bitmap>(64, 0.75f, true) {
@@ -20,7 +20,7 @@ class PlainTiles(private val shapes: () -> LandShapes?) : TileSource {
     @Synchronized
     override fun tile(key: TileKey): Bitmap? {
         cache[key]?.let { return it }
-        val style = MapStyle.plainFor(key.set) ?: return null
+        val style = MapStyle.vectorSet(key.set)?.first ?: return null
         val land = shapes() ?: return null
         return render(key, style, land).also { cache[key] = it }
     }

@@ -4,7 +4,9 @@
     <string name="open_timeline">Открыть файл хронологии</string>
     <string name="reading_file">Чтение… %1$d%%</string>
     <string name="how_to_export_title">Как получить хронологию</string>
-    <string name="how_to_export_steps">В Google Картах на телефоне откройте «Хронологию», нажмите ⋮ › «Настройки местоположения и конфиденциальности» › «Экспортировать данные хронологии» и сохраните файл. Trace также читает Records.json и «Семантическую историю местоположений» из Google Takeout.</string>
+    <string name="how_to_export_steps">На телефоне откройте Настройки › Местоположение › Службы геолокации › Хронология › Экспорт данных хронологии и сохраните файл. Затем откройте его здесь.</string>
+    <string name="open_timeline_settings">Открыть настройки хронологии</string>
+    <string name="how_to_export_other">Trace также читает экспорт с iPhone, Records.json и «Семантическую историю местоположений» из Google Takeout, в том числе в ZIP-архивах.</string>
     <string name="import_failed">Не удалось открыть файл</string>
     <string name="error_not_timeline">Это не экспорт хронологии Google.</string>
     <string name="error_no_locations">В этом файле нет истории местоположений.</string>
@@ -21,6 +23,11 @@
     <string name="earlier">Раньше</string>
     <string name="later">Позже</string>
     <string name="choose_dates">Выбрать даты</string>
+    <string name="pick_dates">Выбрать даты</string>
+    <string name="pick_range">Период</string>
+    <string name="pick_days">Дни</string>
+    <string name="pick_range_hint">Нажмите на первый и последний день.</string>
+    <string name="pick_days_hint">Нажмите на дни, которые нужно показать.</string>
     <string name="preset_day">День</string>
     <string name="preset_week">Неделя</string>
     <string name="preset_month">Месяц</string>
@@ -47,12 +54,45 @@
         <item quantity="other">%d точки</item>
     </plurals>
 
-    <string name="motion">Движение</string>
     <string name="zoom_smoothness">Плавность зума</string>
-    <string name="zoom_smoothness_hint">Чем выше, тем реже и медленнее движется камера.</string>
+    <string name="camera">Камера</string>
+    <string name="camera_follow">Следовать</string>
+    <string name="camera_shots">Кадры</string>
+    <string name="camera_whole">Весь маршрут</string>
+    <string name="camera_follow_hint">Движется вместе с маршрутом и отдаляется в дальних поездках.</string>
+    <string name="camera_shots_hint">Спокойные кадры с плавным переходом к следующей части поездки.</string>
+    <string name="camera_whole_hint">Весь маршрут всё время в кадре.</string>
+    <string name="pause_at_stops">Пауза на остановках</string>
+    <string name="zoom_smoothness_hint">Чем выше, тем мягче и реже меняется масштаб.</string>
     <string name="travel_points">Точки маршрута</string>
     <string name="travel_points_value">%1$s из %2$s</string>
     <string name="travel_points_hint">Меньше точек — проще и плавнее линии.</string>
+    <string name="route">Маршрут</string>
+    <string name="edit_points">Убрать ошибки GPS</string>
+    <string name="edit_points_title">Ошибки GPS</string>
+    <string name="edit_points_hint">Нажмите на точку, чтобы выбрать её. Нажмите на другую, чтобы выбрать всё между ними.</string>
+    <string name="edit_points_extend">Нажмите на другую точку, чтобы выбрать весь участок.</string>
+    <string name="next_likely_error">Следующая вероятная ошибка</string>
+    <string name="restore_all">Вернуть все</string>
+    <string name="undo">Отменить</string>
+    <plurals name="likely_errors">
+        <item quantity="one">Показать %d вероятную ошибку</item>
+        <item quantity="few">Показать %d вероятные ошибки</item>
+        <item quantity="many">Показать %d вероятных ошибок</item>
+        <item quantity="other">Показать %d вероятной ошибки</item>
+    </plurals>
+    <plurals name="remove_points">
+        <item quantity="one">Убрать %d точку</item>
+        <item quantity="few">Убрать %d точки</item>
+        <item quantity="many">Убрать %d точек</item>
+        <item quantity="other">Убрать %d точки</item>
+    </plurals>
+    <plurals name="points_removed">
+        <item quantity="one">Убрана %d точка</item>
+        <item quantity="few">Убрано %d точки</item>
+        <item quantity="many">Убрано %d точек</item>
+        <item quantity="other">Убрано %d точки</item>
+    </plurals>
 
     <string name="style">Стиль</string>
     <string name="style_light">Светлый</string>
@@ -60,7 +100,8 @@
     <string name="style_voyager">Voyager</string>
     <string name="style_paper">Бумага</string>
     <string name="style_ink">Чернила</string>
-    <string name="needs_key_hint">Для стилей «Светлый», «Тёмный» и Voyager нужен бесплатный ключ CARTO. Добавьте его в настройках или выберите «Бумагу» или «Чернила».</string>
+    <string name="style_streets">Улицы</string>
+    <string name="needs_key_hint">Для стилей «Светлый», «Тёмный» и Voyager нужен бесплатный ключ CARTO. Добавьте его в настройках или выберите «Бумагу», «Чернила» или «Улицы» — они бесплатные.</string>
     <string name="labels">Подписи на карте</string>
     <string name="color">Цвет</string>
     <string name="pick_color">Свой цвет</string>
@@ -99,7 +140,7 @@
     <string name="error_export">При создании видео что-то пошло не так.</string>
 
     <string name="map_key">Ключ карт</string>
-    <string name="map_key_explained">Карты «Светлый», «Тёмный» и Voyager предоставляет CARTO, и для них нужен бесплатный ключ. Без него на картах будет надпись «API KEY REQUIRED».</string>
+    <string name="map_key_explained">«Бумага», «Чернила» и «Улицы» бесплатны и не требуют ключа. Карты «Светлый», «Тёмный» и Voyager предоставляет CARTO, и для них нужен бесплатный ключ; без него на них будет надпись «API KEY REQUIRED».</string>
     <string name="get_free_key">Получить бесплатный ключ</string>
     <string name="carto_key">Ключ CARTO</string>
     <string name="show_key">Показать ключ</string>
@@ -116,5 +157,5 @@
     <string name="replace">Заменить</string>
     <string name="remove">Удалить</string>
     <string name="about">О приложении</string>
-    <string name="about_text">Trace %1$s. Карты © участники OpenStreetMap © CARTO. Береговые линии — Natural Earth.</string>
+    <string name="about_text">Trace %1$s. Карты © участники OpenStreetMap, OpenFreeMap, OpenMapTiles и CARTO. Береговые линии — Natural Earth.</string>
 </resources>

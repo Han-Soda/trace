@@ -5,17 +5,19 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.SystemClock
 import android.util.LruCache
-import io.github.hansoda.trace.BuildConfig
 import io.github.hansoda.trace.render.LandShapes
 import io.github.hansoda.trace.render.MapStyle
 import io.github.hansoda.trace.render.PlainTiles
 import io.github.hansoda.trace.render.TileKey
 import io.github.hansoda.trace.render.TileSource
+import io.github.hansoda.trace.render.VectorPainter
+import io.github.hansoda.trace.render.VectorTile
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,9 +37,10 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /**
- * Map tiles for preview and export: CARTO tiles cached on disk, and Paper and Ink tiles drawn
- * on the device. The preview never waits; missing tiles load in the background and bump
- * [version] so the preview redraws.
+ * Map tiles for preview and export. CARTO tiles are cached on disk as they come. The free
+ * styles are drawn on the device from OpenFreeMap vector tiles, cached on disk too, or from the
+ * bundled coastlines when those can't be had. The preview never waits; missing tiles load in
+ * the background and bump [version] so the preview redraws.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TileStore(private val context: Context) : TileSource {
@@ -52,7 +55,10 @@ class TileStore(private val context: Context) : TileSource {
     private val land by lazy {
         runCatching { context.assets.open("land.bin").use { LandShapes.decode(it.readBytes()) } }.getOrNull()
     }
-    private val plain = PlainTiles { land }
+    private val coastlines = PlainTiles { land }
+    private val openFreeMap = OpenFreeMap(context)
+    private val vectors = LruCache<TileKey, VectorTile>(VECTOR_TILES)
+    private val vectorLocks = ConcurrentHashMap<TileKey, Any>()
     private val _version = MutableStateFlow(0)
 
     /** Increases whenever a tile arrives, so whoever draws can refresh. */
@@ -72,8 +78,11 @@ class TileStore(private val context: Context) : TileSource {
 
     override fun tile(key: TileKey): Bitmap? {
         memory.get(key)?.let { return it }
-        val recentFailure = failedAt[key]
-        if (recentFailure != null && SystemClock.elapsedRealtime() - recentFailure < RETRY_MS) return null
+        val vector = MapStyle.isVectorSet(key.set)
+        val recentFailure = failedAt[if (vector) source(key) else key]
+        if (recentFailure != null && SystemClock.elapsedRealtime() - recentFailure < RETRY_MS) {
+            return if (vector) coastlines.tile(key) else null
+        }
         if (loading.add(key)) {
             scope.launch {
                 try {
@@ -86,16 +95,20 @@ class TileStore(private val context: Context) : TileSource {
         return null
     }
 
-    /** Loads a tile on the calling thread without touching the network; for exports after [prefetch]. */
-    fun tileNow(key: TileKey): Bitmap? = memory.get(key) ?: load(key, allowNetwork = false)
+    /**
+     * Loads a tile on the calling thread without touching the network; for exports after
+     * [prefetch]. Free styles fall back to coastlines rather than leave a gap.
+     */
+    fun tileNow(key: TileKey): Bitmap? =
+        memory.get(key) ?: load(key, allowNetwork = false) ?: if (MapStyle.isVectorSet(key.set)) coastlines.tile(key) else null
 
     /**
-     * Downloads every CARTO tile in [keys] that isn't cached yet.
+     * Downloads every tile behind [keys] that isn't cached yet.
      *
      * @return how many tiles couldn't be downloaded.
      */
     suspend fun prefetch(keys: Collection<TileKey>, onProgress: (done: Int, total: Int) -> Unit): Int = withContext(io) {
-        val remote = keys.filter { !MapStyle.isPlainSet(it.set) }
+        val remote = keys.map { if (MapStyle.isVectorSet(it.set)) source(it) else it }.distinct()
         val missing = remote.filter { !fileFor(it).exists() }
         var done = remote.size - missing.size
         var failed = 0
@@ -132,6 +145,7 @@ class TileStore(private val context: Context) : TileSource {
     fun clear() {
         root.deleteRecursively()
         memory.evictAll()
+        vectors.evictAll()
         failedAt.clear()
         _version.update { it + 1 }
     }
@@ -150,7 +164,13 @@ class TileStore(private val context: Context) : TileSource {
     }
 
     private fun load(key: TileKey, allowNetwork: Boolean): Bitmap? {
-        if (MapStyle.isPlainSet(key.set)) return plain.tile(key)?.also { memory.put(key, it) }
+        MapStyle.vectorSet(key.set)?.let { (style, labels) ->
+            val source = source(key)
+            val data = vectorTile(source, allowNetwork) ?: return null
+            val bitmap = VectorPainter(Locale.getDefault().language).paint(data, key, source.z, style.palette!!, labels)
+            memory.put(key, bitmap)
+            return bitmap
+        }
         val file = fileFor(key)
         if (!file.exists() && (!allowNetwork || !download(key, file))) return null
         val bitmap = BitmapFactory.decodeFile(file.path)
@@ -162,15 +182,44 @@ class TileStore(private val context: Context) : TileSource {
         return bitmap
     }
 
+    /** The OpenFreeMap tile holding [key]; past their deepest zoom, a parent tile. */
+    private fun source(key: TileKey): TileKey {
+        val z = minOf(key.z, openFreeMap.maxZoom)
+        val shift = key.z - z
+        return TileKey(OPENFREEMAP, z, key.x shr shift, key.y shr shift)
+    }
+
+    private fun vectorTile(source: TileKey, allowNetwork: Boolean): VectorTile? {
+        vectors.get(source)?.let { return it }
+        // Neighbouring views share source tiles; read each one once.
+        synchronized(vectorLocks.getOrPut(source) { Any() }) {
+            vectors.get(source)?.let { return it }
+            val file = fileFor(source)
+            if (!file.exists() && (!allowNetwork || !download(source, file))) return null
+            val tile = try {
+                VectorTile.decode(file.readBytes())
+            } catch (_: Exception) {
+                file.delete()
+                return null
+            }
+            vectors.put(source, tile)
+            return tile
+        }
+    }
+
     private fun download(key: TileKey, file: File): Boolean {
         var connection: HttpURLConnection? = null
         return try {
-            connection = (URL(key.url(apiKey)).openConnection() as HttpURLConnection).apply {
+            val vector = key.set == OPENFREEMAP
+            val url = if (vector) openFreeMap.url(key.z, key.x, key.y) ?: throw IOException("No tile address") else key.url(apiKey)
+            connection = (URL(url).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 10_000
                 readTimeout = 20_000
-                setRequestProperty("User-Agent", "Trace/${BuildConfig.VERSION_NAME} (Android)")
+                setRequestProperty("User-Agent", OpenFreeMap.USER_AGENT)
             }
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) throw IOException("HTTP ${connection.responseCode}")
+            val code = connection.responseCode
+            if (vector && (code == HttpURLConnection.HTTP_NOT_FOUND || code == 410)) openFreeMap.stale()
+            if (code != HttpURLConnection.HTTP_OK) throw IOException("HTTP $code")
             file.parentFile?.mkdirs()
             val partial = File(file.path + ".part")
             connection.inputStream.use { input -> partial.outputStream().use { input.copyTo(it) } }
@@ -186,6 +235,7 @@ class TileStore(private val context: Context) : TileSource {
     }
 
     private fun fileFor(key: TileKey): File {
+        if (key.set == OPENFREEMAP) return File(root, "openfreemap/${key.z}/${key.x}_${key.y}.pbf")
         val keyFolder = if (apiKey.isEmpty()) "public" else hash(apiKey)
         return File(root, "$keyFolder/${key.set.replace('/', '_')}/${key.z}/${key.x}_${key.y}.png")
     }
@@ -195,6 +245,8 @@ class TileStore(private val context: Context) : TileSource {
 
     private companion object {
         const val RETRY_MS = 15_000L
+        const val OPENFREEMAP = "openfreemap"
+        const val VECTOR_TILES = 12
 
         fun memoryBudgetKb(): Int = (minOf(Runtime.getRuntime().maxMemory() / 5, 96L shl 20) / 1024).toInt()
     }

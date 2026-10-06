@@ -8,20 +8,25 @@ import kotlin.math.abs
  * the best [count]-point approximation the algorithm can find, so the "Travel points" slider
  * only has to filter by rank instead of simplifying again.
  *
- * @return rank of each vertex; 0 and 1 are the endpoints, higher ranks matter less.
+ * @param fixed points that must survive any simplification, such as the ends of separate days;
+ * the first and last points always do.
+ * @return rank of each vertex; 0 and 1 are the endpoints, then the other fixed points, and
+ * higher ranks matter less.
  */
-fun visvalingamRanks(x: DoubleArray, y: DoubleArray): IntArray {
+fun visvalingamRanks(x: DoubleArray, y: DoubleArray, fixed: BooleanArray? = null): IntArray {
     val n = x.size
     val ranks = IntArray(n)
     if (n <= 2) {
         for (i in 0 until n) ranks[i] = i
         return ranks
     }
+    val pinned = BooleanArray(n) { it == 0 || it == n - 1 || fixed?.get(it) == true }
     val previous = IntArray(n) { it - 1 }
     val next = IntArray(n) { it + 1 }
     val area = DoubleArray(n)
     val heap = MinHeap(n)
     for (i in 1 until n - 1) {
+        if (pinned[i]) continue
         area[i] = triangleArea(x, y, i - 1, i, i + 1)
         heap.push(i, area[i])
     }
@@ -38,17 +43,19 @@ fun visvalingamRanks(x: DoubleArray, y: DoubleArray): IntArray {
         val after = next[i]
         next[before] = after
         previous[after] = before
-        if (before > 0) {
+        if (!pinned[before]) {
             area[before] = maxOf(floor, triangleArea(x, y, previous[before], before, after))
             heap.update(before, area[before])
         }
-        if (after < n - 1) {
+        if (!pinned[after]) {
             area[after] = maxOf(floor, triangleArea(x, y, before, after, next[after]))
             heap.update(after, area[after])
         }
     }
     ranks[0] = 0
     ranks[n - 1] = 1
+    var rank = 2
+    for (i in 1 until n - 1) if (pinned[i]) ranks[i] = rank++
     return ranks
 }
 

@@ -26,6 +26,8 @@ class Route(
     val dwellMs: LongArray,
     /** Travel points available in the date range, for the slider label. */
     val availablePoints: Int,
+    /** True where a new piece starts, after days that weren't chosen; the line jumps there. */
+    val breakBefore: BooleanArray = BooleanArray(x.size),
 ) {
     val size: Int get() = x.size
     val totalMeters: Double get() = if (size == 0) 0.0 else meters[size - 1]
@@ -56,7 +58,11 @@ class RangeData internal constructor(
     val offsets: ShortArray,
     val meters: DoubleArray,
     val dwellMs: LongArray,
+    /** True at the first point of every piece but the first; see [Route.breakBefore]. */
+    val breakBefore: BooleanArray,
     private val ranks: IntArray,
+    /** Points every selection keeps: the ends of each piece. */
+    private val fixedCount: Int,
 ) {
     val size: Int get() = x.size
     val totalMeters: Double get() = if (size == 0) 0.0 else meters[size - 1]
@@ -64,8 +70,23 @@ class RangeData internal constructor(
     /** Pauses of at least a quarter of an hour. */
     val stops: Int get() = dwellMs.count { it >= 15 * 60_000L }
 
+    /** First point of the piece holding point [i]. */
+    fun pieceStart(i: Int): Int {
+        var start = i
+        while (start > 0 && !breakBefore[start]) start--
+        return start
+    }
+
+    /** Last point of the piece holding point [i]. */
+    fun pieceEnd(i: Int): Int {
+        var end = i
+        while (end + 1 < size && !breakBefore[end + 1]) end++
+        return end
+    }
+
     fun select(count: Int): Route {
-        val keep = BooleanArray(size) { ranks[it] < count }
+        val limit = maxOf(count, fixedCount)
+        val keep = BooleanArray(size) { ranks[it] < limit }
         val kept = keep.count { it }
         val outX = DoubleArray(kept)
         val outY = DoubleArray(kept)
@@ -73,6 +94,7 @@ class RangeData internal constructor(
         val outOffsets = ShortArray(kept)
         val outMeters = DoubleArray(kept)
         val outDwell = LongArray(kept)
+        val outBreaks = BooleanArray(kept)
         // Position in the output of the last kept point at or before each input point.
         val keptBefore = IntArray(size)
         var k = -1
@@ -84,21 +106,23 @@ class RangeData internal constructor(
                 outTimes[k] = times[i]
                 outOffsets[k] = offsets[i]
                 outMeters[k] = meters[i]
+                outBreaks[k] = breakBefore[i]
             }
             keptBefore[i] = k
         }
-        // A pause belongs to wherever the simplified route passes closest to it.
+        // A pause belongs to wherever the simplified route passes closest to it. Piece ends are
+        // always kept, so the nearest kept point is in the same piece.
         for (i in 0 until size) {
             val dwell = dwellMs[i]
             if (dwell <= 0) continue
             val before = keptBefore[i].coerceAtLeast(0)
             val after = (before + 1).coerceAtMost(kept - 1)
-            val target = if (keep[i] || distanceSquared(outX[before], outY[before], x[i], y[i]) <=
+            val target = if (keep[i] || outBreaks[after] || distanceSquared(outX[before], outY[before], x[i], y[i]) <=
                 distanceSquared(outX[after], outY[after], x[i], y[i])
             ) before else after
             outDwell[target] += dwell
         }
-        return Route(outX, outY, outTimes, outOffsets, outMeters, outDwell, size)
+        return Route(outX, outY, outTimes, outOffsets, outMeters, outDwell, size, outBreaks)
     }
 
     private fun distanceSquared(ax: Double, ay: Double, bx: Double, by: Double): Double =
@@ -112,17 +136,37 @@ object RouteBuilder {
     /** Shorter pauses are just traffic lights and slow GPS. */
     const val MIN_DWELL_MS = 10 * 60_000L
 
-    fun build(timeline: Timeline, from: Long, to: Long): RangeData {
-        val start = timeline.lowerBound(from)
-        val end = timeline.lowerBound(to)
-        val clean = Cleaner(end - start)
-        val spikes = SpikeFilter(timeline, start, end)
-        for (i in start until end) {
-            if (!spikes.isSpike(i)) clean.add(timeline.lat(i), timeline.lon(i), timeline.times[i], timeline.offsets[i])
+    fun build(timeline: Timeline, from: Long, to: Long, excluded: Exclusions = Exclusions.NONE): RangeData =
+        build(timeline, listOf(from until to), excluded)
+
+    /**
+     * Cleans up the fixes in each time span, skipping [excluded] ones. Each span becomes a
+     * separate piece of the route; nothing connects one piece to the next.
+     *
+     * @param spans sorted, separate spans of epoch milliseconds.
+     */
+    fun build(timeline: Timeline, spans: List<LongRange>, excluded: Exclusions = Exclusions.NONE): RangeData {
+        val bounds = spans.map { timeline.lowerBound(it.first) to timeline.lowerBound(it.last + 1) }
+        val clean = Cleaner(bounds.sumOf { (start, end) -> end - start })
+        val pieceStarts = ArrayList<Int>()
+        for ((start, end) in bounds) {
+            val fixes = IntArray(end - start)
+            var count = 0
+            for (i in start until end) if (timeline.times[i] !in excluded) fixes[count++] = i
+            if (count == 0) continue
+            val before = clean.size
+            val spikes = SpikeFilter(timeline, fixes, count)
+            for (j in 0 until count) {
+                val i = fixes[j]
+                if (!spikes.isSpike(j)) clean.add(timeline.lat(i), timeline.lon(i), timeline.times[i], timeline.offsets[i])
+            }
+            clean.endPiece()
+            if (clean.size > before) pieceStarts += before
         }
-        clean.finish()
 
         val n = clean.size
+        val breakBefore = BooleanArray(n)
+        for (start in pieceStarts) if (start > 0) breakBefore[start] = true
         val x = DoubleArray(n) { Geo.x(clean.lon[it]) }
         val y = DoubleArray(n) { Geo.y(clean.lat[it]) }
         // Keep x continuous across the antimeridian so a Tokyo–LA flight crosses the Pacific
@@ -134,25 +178,40 @@ object RouteBuilder {
         val meters = DoubleArray(n)
         val dwell = LongArray(n)
         for (i in 1 until n) {
+            if (breakBefore[i]) {
+                // The jump to the next chosen day isn't travel.
+                meters[i] = meters[i - 1]
+                continue
+            }
             meters[i] = meters[i - 1] + Geo.haversineMeters(clean.lat[i - 1], clean.lon[i - 1], clean.lat[i], clean.lon[i])
             val sameSpot = clean.lat[i] == clean.lat[i - 1] && clean.lon[i] == clean.lon[i - 1]
             val paused = clean.time[i] - clean.time[i - 1]
             if (sameSpot && paused >= MIN_DWELL_MS) dwell[i - 1] = paused
         }
+        val fixed = BooleanArray(n)
+        for (i in 1 until n) {
+            if (breakBefore[i]) {
+                fixed[i - 1] = true
+                fixed[i] = true
+            }
+        }
+        val fixedCount = if (n == 0) 0 else fixed.count { it } + (if (fixed[0]) 0 else 1) + (if (n > 1 && !fixed[n - 1]) 1 else 0)
         return RangeData(
-            x, y, clean.time.copyOf(n), clean.offset.copyOf(n), meters, dwell,
-            visvalingamRanks(x, y),
+            x, y, clean.time.copyOf(n), clean.offset.copyOf(n), meters, dwell, breakBefore,
+            visvalingamRanks(x, y, fixed), fixedCount,
         )
     }
 
     /** Drops lone fixes that jump far away and straight back, faster than anything travels. */
-    private class SpikeFilter(private val timeline: Timeline, private val start: Int, private val end: Int) {
+    private class SpikeFilter(private val timeline: Timeline, private val fixes: IntArray, private val count: Int) {
         private var lastKept = -1
 
-        fun isSpike(i: Int): Boolean {
+        /** Whether the [j]th fix of [fixes] is a spike. */
+        fun isSpike(j: Int): Boolean {
             val previous = lastKept
-            if (previous >= 0 && i + 1 < end) {
-                val next = i + 1
+            if (previous >= 0 && j + 1 < count) {
+                val i = fixes[j]
+                val next = fixes[j + 1]
                 val out = distance(previous, i)
                 val back = distance(i, next)
                 val direct = distance(previous, next)
@@ -160,7 +219,7 @@ object RouteBuilder {
                 val backSpeed = back / seconds(i, next)
                 if (minOf(out, back) > 300 && out + back > 3 * (direct + 50) && outSpeed > 50 && backSpeed > 50) return true
             }
-            lastKept = i
+            lastKept = fixes[j]
             return false
         }
 
@@ -168,10 +227,6 @@ object RouteBuilder {
             Geo.haversineMeters(timeline.lat(a), timeline.lon(a), timeline.lat(b), timeline.lon(b))
 
         private fun seconds(a: Int, b: Int) = ((timeline.times[b] - timeline.times[a]) / 1000.0).coerceAtLeast(1.0)
-
-        init {
-            require(start <= end)
-        }
     }
 
     /**
@@ -179,10 +234,10 @@ object RouteBuilder {
      * leaving. Moving fixes closer together than [STILL_RADIUS_METERS] are dropped too.
      */
     private class Cleaner(capacity: Int) {
-        val lat = DoubleArray(capacity * 2 + 2)
-        val lon = DoubleArray(capacity * 2 + 2)
-        val time = LongArray(capacity * 2 + 2)
-        val offset = ShortArray(capacity * 2 + 2)
+        val lat = DoubleArray(capacity + 2)
+        val lon = DoubleArray(capacity + 2)
+        val time = LongArray(capacity + 2)
+        val offset = ShortArray(capacity + 2)
         var size = 0
             private set
 
@@ -207,6 +262,12 @@ object RouteBuilder {
             if (anchor >= 0 && stillUntil > time[size - 1] && size - 1 == anchor) {
                 append(lat[anchor], lon[anchor], stillUntil, stillOffset)
             }
+        }
+
+        /** Finishes a piece, so the next fix starts afresh even at the same spot. */
+        fun endPiece() {
+            finish()
+            anchor = -1
         }
 
         private fun append(latitude: Double, longitude: Double, at: Long, utcOffset: Short) {
