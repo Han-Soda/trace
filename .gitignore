@@ -1,0 +1,7 @@
+/.gradle/
+/.idea/
+/local.properties
+**/build/
+*.iml
+# Shared development key, so APKs from any machine or CI run install over each other.
+!/app/debug.keystore

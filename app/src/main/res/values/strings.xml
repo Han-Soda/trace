@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Trace</string>
+
+    <string name="welcome_tagline">Turn your Google Maps Timeline into a short video.</string>
+    <string name="open_timeline">Open Timeline file</string>
+    <string name="reading_file">Reading… %1$d%%</string>
+    <string name="how_to_export_title">Getting your Timeline</string>
+    <string name="how_to_export_steps">In Google Maps on your phone, open Your Timeline, tap ⋮ › Location &amp; privacy settings › Export Timeline data, and save the file. Trace also reads Records.json and Semantic Location History from Google Takeout.</string>
+    <string name="import_failed">Couldn’t open the file</string>
+    <string name="error_not_timeline">This file isn’t a Google Timeline export.</string>
+    <string name="error_no_locations">This file has no location history in it.</string>
+    <string name="error_empty_archive">This archive has no Timeline export in it.</string>
+    <string name="error_too_large">This file is too large to open on this phone.</string>
+    <string name="error_unreadable">Couldn’t read the file.</string>
+
+    <string name="settings">Settings</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="no_movement">No movement in these dates. Try other dates.</string>
+
+    <string name="dates">Dates</string>
+    <string name="earlier">Earlier dates</string>
+    <string name="later">Later dates</string>
+    <string name="choose_dates">Choose dates</string>
+    <string name="preset_day">Day</string>
+    <string name="preset_week">Week</string>
+    <string name="preset_month">Month</string>
+    <string name="preset_year">Year</string>
+    <string name="preset_all">All</string>
+    <string name="apply">Apply</string>
+    <string name="cancel">Cancel</string>
+    <plurals name="days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="stops">
+        <item quantity="one">%d stop</item>
+        <item quantity="other">%d stops</item>
+    </plurals>
+    <plurals name="locations">
+        <item quantity="one">%d location</item>
+        <item quantity="other">%d locations</item>
+    </plurals>
+
+    <string name="motion">Motion</string>
+    <string name="zoom_smoothness">Zoom smoothness</string>
+    <string name="zoom_smoothness_hint">Higher means fewer, slower camera moves.</string>
+    <string name="travel_points">Travel points</string>
+    <string name="travel_points_value">%1$s of %2$s</string>
+    <string name="travel_points_hint">Fewer points draw simpler, smoother lines.</string>
+
+    <string name="style">Style</string>
+    <string name="style_light">Light</string>
+    <string name="style_dark">Dark</string>
+    <string name="style_voyager">Voyager</string>
+    <string name="style_paper">Paper</string>
+    <string name="style_ink">Ink</string>
+    <string name="needs_key_hint">Light, Dark and Voyager need a free CARTO key. Add it in Settings, or pick Paper or Ink.</string>
+    <string name="labels">Map labels</string>
+    <string name="color">Color</string>
+    <string name="pick_color">Custom color</string>
+    <string name="custom_color">Custom color</string>
+    <string name="hex_code">Hex code</string>
+    <string name="use_color">Use</string>
+    <string name="line">Line</string>
+    <string name="line_thin">Thin</string>
+    <string name="line_regular">Regular</string>
+    <string name="line_bold">Bold</string>
+    <string name="mark_points">Show travel points</string>
+
+    <string name="text">Text</string>
+    <string name="title">Title</string>
+    <string name="date">Date</string>
+    <string name="distance">Distance</string>
+
+    <string name="video">Video</string>
+    <string name="length">Length</string>
+    <string name="seconds_value">%1$d s</string>
+    <string name="export_video">Export video</string>
+    <string name="save_image">Save image</string>
+    <string name="preparing">Preparing…</string>
+    <string name="downloading_map">Downloading map… %1$d%%</string>
+    <string name="rendering">Rendering… %1$d%%</string>
+    <string name="saving">Saving…</string>
+    <string name="video_saved">Video saved</string>
+    <string name="image_saved">Image saved</string>
+    <string name="saved_to_movies">It’s in Movies/Trace.</string>
+    <string name="saved_to_pictures">It’s in Pictures/Trace.</string>
+    <string name="open">Open</string>
+    <string name="share">Share</string>
+    <string name="close">Close</string>
+    <string name="ok">OK</string>
+    <string name="export_failed">Couldn’t export</string>
+    <string name="error_export">Something went wrong while making the video.</string>
+
+    <string name="map_key">Map key</string>
+    <string name="map_key_explained">Light, Dark and Voyager maps come from CARTO, which needs a free key. Without one, maps show “API KEY REQUIRED”.</string>
+    <string name="get_free_key">Get a free key</string>
+    <string name="carto_key">CARTO key</string>
+    <string name="show_key">Show key</string>
+    <string name="hide_key">Hide key</string>
+    <string name="test_key">Test</string>
+    <string name="key_test_failed">Couldn’t load a map tile.</string>
+    <string name="key_test_loaded">If this tile says API KEY REQUIRED, the key isn’t valid.</string>
+    <string name="units">Units</string>
+    <string name="video_quality">Video quality</string>
+    <string name="fps_value">%1$d fps</string>
+    <string name="storage">Storage</string>
+    <string name="map_cache">Map cache · %1$s</string>
+    <string name="clear">Clear</string>
+    <string name="replace">Replace</string>
+    <string name="remove">Remove</string>
+    <string name="about">About</string>
+    <string name="about_text">Trace %1$s. Maps © OpenStreetMap contributors © CARTO. Coastlines from Natural Earth.</string>
+</resources>

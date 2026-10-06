@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="welcome_tagline">Превратите хронологию Google Карт в короткое видео.</string>
+    <string name="open_timeline">Открыть файл хронологии</string>
+    <string name="reading_file">Чтение… %1$d%%</string>
+    <string name="how_to_export_title">Как получить хронологию</string>
+    <string name="how_to_export_steps">В Google Картах на телефоне откройте «Хронологию», нажмите ⋮ › «Настройки местоположения и конфиденциальности» › «Экспортировать данные хронологии» и сохраните файл. Trace также читает Records.json и «Семантическую историю местоположений» из Google Takeout.</string>
+    <string name="import_failed">Не удалось открыть файл</string>
+    <string name="error_not_timeline">Это не экспорт хронологии Google.</string>
+    <string name="error_no_locations">В этом файле нет истории местоположений.</string>
+    <string name="error_empty_archive">В этом архиве нет экспорта хронологии.</string>
+    <string name="error_too_large">Файл слишком большой для этого телефона.</string>
+    <string name="error_unreadable">Не удалось прочитать файл.</string>
+
+    <string name="settings">Настройки</string>
+    <string name="play">Воспроизвести</string>
+    <string name="pause">Пауза</string>
+    <string name="no_movement">В эти даты нет перемещений. Попробуйте другие даты.</string>
+
+    <string name="dates">Даты</string>
+    <string name="earlier">Раньше</string>
+    <string name="later">Позже</string>
+    <string name="choose_dates">Выбрать даты</string>
+    <string name="preset_day">День</string>
+    <string name="preset_week">Неделя</string>
+    <string name="preset_month">Месяц</string>
+    <string name="preset_year">Год</string>
+    <string name="preset_all">Всё</string>
+    <string name="apply">Применить</string>
+    <string name="cancel">Отмена</string>
+    <plurals name="days">
+        <item quantity="one">%d день</item>
+        <item quantity="few">%d дня</item>
+        <item quantity="many">%d дней</item>
+        <item quantity="other">%d дня</item>
+    </plurals>
+    <plurals name="stops">
+        <item quantity="one">%d остановка</item>
+        <item quantity="few">%d остановки</item>
+        <item quantity="many">%d остановок</item>
+        <item quantity="other">%d остановки</item>
+    </plurals>
+    <plurals name="locations">
+        <item quantity="one">%d точка</item>
+        <item quantity="few">%d точки</item>
+        <item quantity="many">%d точек</item>
+        <item quantity="other">%d точки</item>
+    </plurals>
+
+    <string name="motion">Движение</string>
+    <string name="zoom_smoothness">Плавность зума</string>
+    <string name="zoom_smoothness_hint">Чем выше, тем реже и медленнее движется камера.</string>
+    <string name="travel_points">Точки маршрута</string>
+    <string name="travel_points_value">%1$s из %2$s</string>
+    <string name="travel_points_hint">Меньше точек — проще и плавнее линии.</string>
+
+    <string name="style">Стиль</string>
+    <string name="style_light">Светлый</string>
+    <string name="style_dark">Тёмный</string>
+    <string name="style_voyager">Voyager</string>
+    <string name="style_paper">Бумага</string>
+    <string name="style_ink">Чернила</string>
+    <string name="needs_key_hint">Для стилей «Светлый», «Тёмный» и Voyager нужен бесплатный ключ CARTO. Добавьте его в настройках или выберите «Бумагу» или «Чернила».</string>
+    <string name="labels">Подписи на карте</string>
+    <string name="color">Цвет</string>
+    <string name="pick_color">Свой цвет</string>
+    <string name="custom_color">Свой цвет</string>
+    <string name="hex_code">HEX-код</string>
+    <string name="use_color">Выбрать</string>
+    <string name="line">Линия</string>
+    <string name="line_thin">Тонкая</string>
+    <string name="line_regular">Обычная</string>
+    <string name="line_bold">Толстая</string>
+    <string name="mark_points">Показывать точки маршрута</string>
+
+    <string name="text">Текст</string>
+    <string name="title">Заголовок</string>
+    <string name="date">Дата</string>
+    <string name="distance">Расстояние</string>
+
+    <string name="video">Видео</string>
+    <string name="length">Длительность</string>
+    <string name="seconds_value">%1$d с</string>
+    <string name="export_video">Экспорт видео</string>
+    <string name="save_image">Сохранить изображение</string>
+    <string name="preparing">Подготовка…</string>
+    <string name="downloading_map">Загрузка карты… %1$d%%</string>
+    <string name="rendering">Создание видео… %1$d%%</string>
+    <string name="saving">Сохранение…</string>
+    <string name="video_saved">Видео сохранено</string>
+    <string name="image_saved">Изображение сохранено</string>
+    <string name="saved_to_movies">Оно в папке Movies/Trace.</string>
+    <string name="saved_to_pictures">Оно в папке Pictures/Trace.</string>
+    <string name="open">Открыть</string>
+    <string name="share">Поделиться</string>
+    <string name="close">Закрыть</string>
+    <string name="ok">ОК</string>
+    <string name="export_failed">Не удалось экспортировать</string>
+    <string name="error_export">При создании видео что-то пошло не так.</string>
+
+    <string name="map_key">Ключ карт</string>
+    <string name="map_key_explained">Карты «Светлый», «Тёмный» и Voyager предоставляет CARTO, и для них нужен бесплатный ключ. Без него на картах будет надпись «API KEY REQUIRED».</string>
+    <string name="get_free_key">Получить бесплатный ключ</string>
+    <string name="carto_key">Ключ CARTO</string>
+    <string name="show_key">Показать ключ</string>
+    <string name="hide_key">Скрыть ключ</string>
+    <string name="test_key">Проверить</string>
+    <string name="key_test_failed">Не удалось загрузить фрагмент карты.</string>
+    <string name="key_test_loaded">Если на фрагменте написано API KEY REQUIRED, ключ недействителен.</string>
+    <string name="units">Единицы</string>
+    <string name="video_quality">Качество видео</string>
+    <string name="fps_value">%1$d к/с</string>
+    <string name="storage">Хранилище</string>
+    <string name="map_cache">Кэш карт · %1$s</string>
+    <string name="clear">Очистить</string>
+    <string name="replace">Заменить</string>
+    <string name="remove">Удалить</string>
+    <string name="about">О приложении</string>
+    <string name="about_text">Trace %1$s. Карты © участники OpenStreetMap © CARTO. Береговые линии — Natural Earth.</string>
+</resources>

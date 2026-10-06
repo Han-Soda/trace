@@ -1,0 +1,98 @@
+package io.github.hansoda.trace.export
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.net.Uri
+import io.github.hansoda.trace.motion.Plan
+import io.github.hansoda.trace.render.FrameRenderer
+import io.github.hansoda.trace.render.Look
+import io.github.hansoda.trace.render.Overlay
+import io.github.hansoda.trace.render.TileKey
+import io.github.hansoda.trace.render.TileMath
+import io.github.hansoda.trace.render.TileSource
+import io.github.hansoda.trace.tiles.TileStore
+import java.io.File
+import java.io.IOException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+
+/** Renders a [Plan] to an MP4 video or a PNG image and saves it to the shared folders. */
+class VideoExporter(private val context: Context, private val tiles: TileStore) {
+    sealed interface Progress {
+        /** Downloading map tiles. */
+        data class Map(val done: Int, val total: Int) : Progress
+
+        /** Drawing and encoding frames. */
+        data class Frames(val done: Int, val total: Int) : Progress
+    }
+
+    suspend fun video(
+        plan: Plan, width: Int, height: Int, look: Look, overlay: Overlay, name: String,
+        onProgress: (Progress) -> Unit,
+    ): Uri = withContext(Dispatchers.Default) {
+        downloadTiles(plan, 0 until plan.frameCount, width, height, look, onProgress)
+        val file = File(context.cacheDir, "export.mp4")
+        file.delete()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        try {
+            val canvas = Canvas(bitmap)
+            val renderer = FrameRenderer()
+            val source = TileSource { tiles.tileNow(it) }
+            AvcEncoder(width, height, plan.fps, VideoSizes.bitRate(width, height, plan.fps), file).use { encoder ->
+                for (frame in 0 until plan.frameCount) {
+                    ensureActive()
+                    renderer.draw(canvas, width, height, plan, frame, look, overlay, source)
+                    encoder.encode(bitmap)
+                    if (frame % 3 == 0 || frame == plan.frameCount - 1) onProgress(Progress.Frames(frame + 1, plan.frameCount))
+                }
+                encoder.finish()
+            }
+            ensureActive()
+            MediaSaver.saveVideo(context, file, name)
+        } finally {
+            bitmap.recycle()
+            file.delete()
+        }
+    }
+
+    /** Saves the closing overview, the whole route at once, as an image. */
+    suspend fun image(
+        plan: Plan, width: Int, height: Int, look: Look, overlay: Overlay, name: String,
+        onProgress: (Progress) -> Unit,
+    ): Uri = withContext(Dispatchers.Default) {
+        val last = plan.frameCount - 1
+        downloadTiles(plan, last..last, width, height, look, onProgress)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        try {
+            FrameRenderer().draw(Canvas(bitmap), width, height, plan, last, look, overlay) { tiles.tileNow(it) }
+            ensureActive()
+            MediaSaver.saveImage(context, name) { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    private suspend fun downloadTiles(
+        plan: Plan, frames: IntRange, width: Int, height: Int, look: Look,
+        onProgress: (Progress) -> Unit,
+    ) {
+        if (!look.map.usesCarto) return
+        val set = look.map.tileSet(look.labels)
+        val aspect = width.toDouble() / height
+        val keys = LinkedHashSet<TileKey>()
+        for (f in frames) {
+            val zoom = TileMath.zoom(plan.cameraWidth[f], width)
+            for ((z, _) in TileMath.levels(zoom)) {
+                TileMath.forEachTile(z, plan.cameraX[f], plan.cameraY[f], plan.cameraWidth[f], aspect) { _, tileY, wrappedX ->
+                    keys += TileKey(set, z, wrappedX, tileY)
+                }
+            }
+        }
+        val failed = tiles.prefetch(keys) { done, total -> onProgress(Progress.Map(done, total)) }
+        if (keys.isNotEmpty() && failed == keys.size) {
+            throw IOException("Couldn't download the map. Check the connection, or choose Paper or Ink, which work offline.")
+        }
+    }
+}
