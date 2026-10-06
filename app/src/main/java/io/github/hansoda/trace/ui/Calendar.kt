@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -48,7 +49,6 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
-import java.util.Locale
 
 private enum class PickMode { RANGE, DAYS }
 
@@ -157,7 +157,7 @@ fun CalendarSheet(
 
 @Composable
 private fun WeekdayHeader() {
-    val locale = Locale.getDefault()
+    val locale = LocalConfiguration.current.locales[0]
     val first = WeekFields.of(locale).firstDayOfWeek
     Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
         for (k in 0 until 7) {
@@ -182,7 +182,7 @@ private fun Month(
     activity: DayActivity?,
     onTap: (Long) -> Unit,
 ) {
-    val locale = Locale.getDefault()
+    val locale = LocalConfiguration.current.locales[0]
     val title = remember(month, locale) { month.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)).replaceFirstChar { it.titlecase(locale) } }
     val firstDayOfWeek = WeekFields.of(locale).firstDayOfWeek
     val leading = (month.atDay(1).dayOfWeek.value - firstDayOfWeek.value + 7) % 7
