@@ -5,7 +5,8 @@ plugins {
 
 android {
     namespace = "io.github.hansoda.trace"
-    compileSdk = 36
+    // Compose 1.12 needs to compile against Android 17; the app still targets Android 16.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "io.github.hansoda.trace"
