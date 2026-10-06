@@ -200,6 +200,8 @@ class TileStore(private val context: Context) : TileSource {
                 VectorTile.decode(file.readBytes())
             } catch (_: Exception) {
                 file.delete()
+                // Coastlines until the retry, rather than downloading it again for every frame.
+                failedAt[source] = SystemClock.elapsedRealtime()
                 return null
             }
             vectors.put(source, tile)

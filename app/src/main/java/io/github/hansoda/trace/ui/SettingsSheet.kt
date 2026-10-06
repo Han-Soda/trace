@@ -88,6 +88,11 @@ fun SettingsSheet(state: ScreenState, actions: ScreenActions, onDismiss: () -> U
                     TextButton(onClick = actions.openFiles) { Text(stringResource(R.string.replace)) }
                     TextButton(onClick = actions.removeTimeline) { Text(stringResource(R.string.remove)) }
                 }
+                // For exporting newer history to replace this file with.
+                TextButton(onClick = actions.openTimelineExport) {
+                    Icon(TraceIcons.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(stringResource(R.string.open_timeline_settings), modifier = Modifier.padding(start = 8.dp))
+                }
             }
 
             SectionTitle(stringResource(R.string.about))

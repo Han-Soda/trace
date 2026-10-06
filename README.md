@@ -70,10 +70,12 @@ Open this `trace` folder in Android Studio, or run:
 ./gradlew connectedDebugAndroidTest  # encodes a real video on a device or emulator
 ```
 
-The `Trace` GitHub Actions workflow runs the same on every push and attaches the APKs to the
-run. APKs are signed with the development key in `app/debug.keystore` (password `android`), so
-builds from any machine install over each other. To sign with your own key, set
-`TRACE_KEYSTORE`, `TRACE_KEYSTORE_PASSWORD`, `TRACE_KEY_ALIAS` and `TRACE_KEY_PASSWORD`.
+The `Trace` GitHub Actions workflow runs the same on every push and attaches the release APK to
+the run, named after the commit it was built from, such as `trace-c1d4b8d.apk`. The version in
+**Settings › About** ends with the same commit, such as `1.1-c1d4b8d`. APKs are signed with the
+development key in `app/debug.keystore` (password `android`), so builds from any machine install
+over each other. To sign with your own key, set `TRACE_KEYSTORE`, `TRACE_KEYSTORE_PASSWORD`,
+`TRACE_KEY_ALIAS` and `TRACE_KEY_PASSWORD`.
 
 ## Credits
 

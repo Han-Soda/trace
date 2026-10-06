@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// CI passes the commit it builds, so an installed app can be matched to its build.
+val commit = System.getenv("TRACE_COMMIT")?.trim()?.take(7)?.takeIf { it.isNotEmpty() }
+
 android {
     namespace = "io.github.hansoda.trace"
     // Compose 1.12 needs to compile against Android 17; the app still targets Android 16.
@@ -12,8 +15,8 @@ android {
         applicationId = "io.github.hansoda.trace"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = if (commit == null) "1.1" else "1.1-$commit"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
