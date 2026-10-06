@@ -31,11 +31,13 @@ import org.junit.runner.RunWith
 class ExportTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
+    /** Android 8 and 9 need both: without read access, shared storage isn't mounted for the app. */
     @Before
     fun allowSavingOnOldAndroid() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            InstrumentationRegistry.getInstrumentation().uiAutomation
-                .grantRuntimePermission(context.packageName, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+            automation.grantRuntimePermission(context.packageName, Manifest.permission.READ_EXTERNAL_STORAGE)
+            automation.grantRuntimePermission(context.packageName, Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
     }
 

@@ -71,15 +71,13 @@ class MainActivity : ComponentActivity() {
             viewModel.import(uris)
         }
         val pendingImage = remember { booleanArrayOf(false) }
-        val storage = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) if (pendingImage[0]) viewModel.saveImage() else viewModel.exportVideo()
+        val storage = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            if (hasStorage()) if (pendingImage[0]) viewModel.saveImage() else viewModel.exportVideo()
         }
         fun withStorage(image: Boolean) {
-            val needsPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
-                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
-            if (needsPermission) {
+            if (!hasStorage()) {
                 pendingImage[0] = image
-                storage.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                storage.launch(STORAGE)
             } else if (image) {
                 viewModel.saveImage()
             } else {
@@ -135,6 +133,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Android 8 and 9 mount shared storage only for apps that may both read and write it. */
+    private fun hasStorage() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q || STORAGE.all {
+        ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun share() {
         val uri = viewModel.exportedUri() ?: return
         val image = (viewModel.export.value as? ExportState.Done)?.image == true
@@ -159,5 +162,9 @@ class MainActivity : ComponentActivity() {
         } catch (_: ActivityNotFoundException) {
             // Nothing installed can handle it; nothing else to do.
         }
+    }
+
+    private companion object {
+        val STORAGE = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
     }
 }

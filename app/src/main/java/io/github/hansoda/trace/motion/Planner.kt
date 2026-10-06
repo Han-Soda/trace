@@ -197,8 +197,8 @@ object Planner {
             if (loss <= tolerance) queue += Candidate(loss, left, version[left], right, version[right])
         }
         for (k in 0 until count - 1) offer(k)
-        while (queue.isNotEmpty()) {
-            val pair = queue.poll()
+        while (true) {
+            val pair = queue.poll() ?: break
             if (!alive[pair.left] || !alive[pair.right] || version[pair.left] != pair.leftVersion ||
                 version[pair.right] != pair.rightVersion
             ) continue
