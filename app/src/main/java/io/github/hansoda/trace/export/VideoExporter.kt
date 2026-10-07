@@ -65,16 +65,16 @@ class VideoExporter(private val context: Context, private val tiles: TileStore, 
         }
     }
 
-    /** Saves the closing overview, the whole route at once, as an image. */
+    /** Saves one [frame] as an image: by default the closing overview, the whole route at once. */
     suspend fun image(
         plan: Plan, width: Int, height: Int, look: Look, overlay: Overlay, name: String,
+        frame: Int = plan.frameCount - 1,
         onProgress: (Progress) -> Unit,
     ): Uri = withContext(Dispatchers.Default) {
-        val last = plan.frameCount - 1
-        downloadTiles(plan, last..last, width, height, look, onProgress)
+        downloadTiles(plan, frame..frame, width, height, look, onProgress)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         try {
-            FrameRenderer().draw(Canvas(bitmap), width, height, plan, last, look, overlay, { tiles.tileNow(it) }, photos)
+            FrameRenderer().draw(Canvas(bitmap), width, height, plan, frame, look, overlay, { tiles.tileNow(it) }, photos)
             ensureActive()
             MediaSaver.saveImage(context, name) { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
         } finally {

@@ -605,7 +605,7 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val look = lookFor(s)
                 exported = if (image) {
-                    exporter.image(plan, width, height, look, overlay, name, onProgress)
+                    exporter.image(plan, width, height, look, overlay, name, onProgress = onProgress)
                 } else {
                     exporter.video(plan, width, height, look, overlay, name, if (s.clipSound) photos.sounds else null, onProgress)
                 }

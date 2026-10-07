@@ -129,6 +129,7 @@ class MainActivity : ComponentActivity() {
                 dismissImportError = viewModel::dismissImportError,
                 testKey = viewModel::testKey,
                 openKeyPage = { browse("https://carto.com/basemaps/apikey/") },
+                openPrivacyPolicy = { browse(PRIVACY_POLICY) },
                 clearCache = viewModel::clearCache,
                 removeTimeline = viewModel::removeTimeline,
                 setLanguage = { language ->
@@ -280,5 +281,6 @@ class MainActivity : ComponentActivity() {
         const val TIMELINE_SETTINGS = "com.google.android.gms.location.settings.LOCATION_HISTORY"
         const val GOOGLE_PLAY_SERVICES = "com.google.android.gms"
         const val MAX_PICKED = 50
+        const val PRIVACY_POLICY = "https://github.com/Han-Soda/google-timeline-visualizer/blob/main/trace/PRIVACY.md"
     }
 }

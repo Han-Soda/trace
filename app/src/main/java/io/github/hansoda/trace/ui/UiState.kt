@@ -151,6 +151,7 @@ class ScreenActions(
     val dismissImportError: () -> Unit,
     val testKey: () -> Unit,
     val openKeyPage: () -> Unit,
+    val openPrivacyPolicy: () -> Unit,
     val clearCache: () -> Unit,
     val removeTimeline: () -> Unit,
     val setLanguage: (AppLanguage) -> Unit,

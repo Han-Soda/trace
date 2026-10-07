@@ -226,6 +226,8 @@
     <string name="video_unavailable">Can’t play the original video.</string>
     <string name="timeline">Timeline</string>
     <string name="maps">Maps</string>
+    <string name="privacy_policy">Privacy policy</string>
+    <string name="licenses">Licenses</string>
     <string name="about">About</string>
     <string name="about_text">Trace %1$s. Maps © OpenStreetMap contributors, OpenFreeMap, OpenMapTiles and CARTO. Coastlines from Natural Earth.</string>
 </resources>

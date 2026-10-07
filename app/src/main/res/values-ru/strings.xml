@@ -248,6 +248,8 @@
     <string name="video_unavailable">Не получается воспроизвести исходное видео.</string>
     <string name="timeline">Хронология</string>
     <string name="maps">Карты</string>
+    <string name="privacy_policy">Политика конфиденциальности</string>
+    <string name="licenses">Лицензии</string>
     <string name="about">О приложении</string>
     <string name="about_text">Trace %1$s. Карты © участники OpenStreetMap, OpenFreeMap, OpenMapTiles и CARTO. Береговые линии — Natural Earth.</string>
 </resources>
