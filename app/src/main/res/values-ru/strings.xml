@@ -212,7 +212,7 @@
     <string name="photo_style_card">Карточка</string>
     <string name="photo_style_map">На карте</string>
     <string name="photo_style_corner">В углу</string>
-    <string name="photo_style_polaroid">Полароид</string>
+    <string name="photo_style_polaroid">Снимок</string>
     <string name="photo_style_card_hint">Крупная карточка поверх карты, потом сворачивается в значок.</string>
     <string name="photo_style_map_hint">Появляется на карте там, где снято, потом становится значком.</string>
     <string name="photo_style_corner_hint">Небольшая картинка в углу, а карта при этом видна целиком.</string>

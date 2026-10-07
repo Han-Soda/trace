@@ -194,7 +194,7 @@
     <string name="photo_style_card">Card</string>
     <string name="photo_style_map">On the map</string>
     <string name="photo_style_corner">In a corner</string>
-    <string name="photo_style_polaroid">Polaroid</string>
+    <string name="photo_style_polaroid">Print</string>
     <string name="photo_style_card_hint">A large card in front of the map, which then shrinks into a pin.</string>
     <string name="photo_style_map_hint">Stands on the map where you took it, then becomes a pin.</string>
     <string name="photo_style_corner_hint">A small picture in a corner while the map carries on.</string>

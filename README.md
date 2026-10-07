@@ -30,8 +30,8 @@ tabs under the preview: Trip, Camera, Photos, Look and Video.
 - **Photos and videos**: add them from the gallery, or **Find from these days** and Trace looks
   through the gallery for the chosen dates and suggests an even spread of what it finds. Each
   comes up on the route where and when it was taken while the trace waits: as a large **Card**,
-  standing **On the map**, small **In a corner** of the video, or as a **Polaroid** print left
-  lying on the map. **Place and time** writes where and when under each one. A video plays up
+  standing **On the map**, small **In a corner** of the video, or as a **Print** left lying
+  on the map. **Place and time** writes where and when under each one. A video plays up
   to 10 seconds, at its own frame rate and with its sound (**Sound from videos** turns that off);
   tap it to choose which part. **Each photo** sets how long a photo stays. Trace places them by
   the time they were taken, so ones without a date are left out.
@@ -58,7 +58,8 @@ itself, so this is as close to one tap as it gets.
 
 Trace also reads the iPhone export, and from Google Takeout `Records.json` and the monthly
 Semantic Location History files, including the ZIP archive itself. The imported history stays
-in the app's private storage; nothing is uploaded. The only network traffic is map tiles.
+in the app's private storage; nothing is uploaded. The only network traffic is map tiles, and
+place names for photos. See the [privacy policy](PRIVACY.md).
 
 ## Maps
 
@@ -97,12 +98,19 @@ Open this `trace` folder in Android Studio, or run:
 ./gradlew connectedDebugAndroidTest  # encodes a real video on a device or emulator
 ```
 
-The `Trace` GitHub Actions workflow runs the same on every push and attaches the release APK to
-the run, named after the commit it was built from, such as `trace-c1d4b8d.apk`. The version in
-**Settings › About** ends with the same commit, such as `1.1-c1d4b8d`. APKs are signed with the
+The `Trace` GitHub Actions workflow runs the same on every push and attaches the release APK and
+the bundle for Google Play to the run, named after the commit they were built from, such as
+`trace-c1d4b8d.apk` and `trace-c1d4b8d.aab`, with the R8 mapping. The version in **Settings ›
+About** ends with the same commit, such as `1.2-c1d4b8d`, and the version code grows with every
+run. With the Play upload key in the repository's secrets, `TRACE_UPLOAD_KEY` (the PKCS #12 file
+in base64) and `TRACE_UPLOAD_PASSWORD`, both are signed with it. Without, they're signed with the
 development key in `app/debug.keystore` (password `android`), so builds from any machine install
-over each other. To sign with your own key, set `TRACE_KEYSTORE`, `TRACE_KEYSTORE_PASSWORD`,
-`TRACE_KEY_ALIAS` and `TRACE_KEY_PASSWORD`.
+over each other: fine for trying out, not for Play. Locally, set `TRACE_KEYSTORE`,
+`TRACE_KEYSTORE_PASSWORD`, `TRACE_KEY_ALIAS` and `TRACE_KEY_PASSWORD` to sign with your own key.
+
+Run the workflow by hand (**Actions › Trace › Run workflow**) to also take the store screenshots,
+in English and Russian, into `play-store/screenshots`. The rest of the store listing is in
+[`play-store`](play-store).
 
 ## Credits
 
