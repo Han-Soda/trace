@@ -1,7 +1,12 @@
 package io.github.hansoda.trace
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.media.ExifInterface
 import android.media.MediaExtractor
+import android.net.Uri
 import android.media.MediaFormat
 import android.Manifest
 import android.os.Build
@@ -12,7 +17,10 @@ import io.github.hansoda.trace.data.Geo
 import io.github.hansoda.trace.data.Timeline
 import io.github.hansoda.trace.export.VideoExporter
 import io.github.hansoda.trace.export.VideoSizes
+import io.github.hansoda.trace.media.MediaLibrary
+import io.github.hansoda.trace.media.PhotoStore
 import io.github.hansoda.trace.motion.CameraMode
+import io.github.hansoda.trace.motion.Moment
 import io.github.hansoda.trace.motion.MotionSettings
 import io.github.hansoda.trace.motion.Planner
 import io.github.hansoda.trace.render.Look
@@ -20,6 +28,10 @@ import io.github.hansoda.trace.render.MapStyle
 import io.github.hansoda.trace.render.Overlay
 import io.github.hansoda.trace.route.Route
 import io.github.hansoda.trace.tiles.TileStore
+import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -42,14 +54,14 @@ class ExportTest {
         }
     }
 
-    private fun route(): Route {
+    private fun route(start: Long = 0): Route {
         val lats = DoubleArray(60) { 52.50 + it * 0.002 }
         val lons = DoubleArray(60) { 13.40 + kotlin.math.sin(it / 6.0) * 0.01 }
         val meters = DoubleArray(60)
         for (i in 1 until 60) meters[i] = meters[i - 1] + Geo.haversineMeters(lats[i - 1], lons[i - 1], lats[i], lons[i])
         return Route(
             DoubleArray(60) { Geo.x(lons[it]) }, DoubleArray(60) { Geo.y(lats[it]) },
-            LongArray(60) { it * 60_000L }, ShortArray(60) { Timeline.NO_OFFSET }, meters, LongArray(60), 60,
+            LongArray(60) { start + it * 60_000L }, ShortArray(60) { Timeline.NO_OFFSET }, meters, LongArray(60), 60,
         )
     }
 
@@ -90,6 +102,49 @@ class ExportTest {
             extractor.release()
         } finally {
             context.contentResolver.delete(uri, null, null)
+        }
+    }
+
+    @Test
+    fun showsAPhotoWhereItWasTaken() = runBlocking {
+        // A photo taken ten minutes into a ride on 7 June 2025, as a camera would save it.
+        val start = 1_749_286_800_000L
+        val file = File(context.cacheDir, "test-photo.jpg")
+        val picture = Bitmap.createBitmap(800, 600, Bitmap.Config.ARGB_8888)
+        Canvas(picture).drawColor(Color.rgb(40, 120, 200))
+        file.outputStream().use { picture.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        // Cameras write the local time; older Androids don't keep the offset, so use the phone's zone.
+        val taken = Instant.ofEpochMilli(start + 10 * 60_000L).atZone(ZoneId.systemDefault())
+        ExifInterface(file.path).apply {
+            setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss").format(taken))
+            setAttribute("OffsetTimeOriginal", if (taken.offset.totalSeconds == 0) "+00:00" else taken.offset.id)
+            saveAttributes()
+        }
+        val library = MediaLibrary(context)
+        val added = library.add(listOf(Uri.fromFile(file)), emptyList()) { _, _ -> }
+        assertEquals(1, added.items.size)
+        val photo = added.items.single()
+        assertEquals(start + 10 * 60_000L, photo.time)
+        try {
+            val (width, height) = VideoSizes.fit(360, 640, 30)
+            val settings = MotionSettings(4.0, 30, width.toDouble() / height, 0.6, moments = listOf(Moment(photo.id, photo.time, 1.5)))
+            val plan = Planner.plan(route(start), settings)
+            assertEquals(10, plan.moments.single().point)
+            val look = Look(MapStyle.PAPER, false, 0xFFFF5A36.toInt(), 1f, false)
+            val photos = PhotoStore(library)
+            val uri = VideoExporter(context, TileStore(context), photos.now).video(plan, width, height, look, Overlay.NONE, "Trace test") {}
+            try {
+                val extractor = MediaExtractor()
+                extractor.setDataSource(context, uri, null)
+                assertEquals(1, extractor.trackCount)
+                assertTrue(extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION) > 3_500_000)
+                extractor.release()
+            } finally {
+                context.contentResolver.delete(uri, null, null)
+            }
+        } finally {
+            library.remove(photo.id)
+            file.delete()
         }
     }
 

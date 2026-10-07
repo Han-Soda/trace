@@ -7,6 +7,7 @@ import android.graphics.Typeface
 import io.github.hansoda.trace.motion.Plan
 import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -18,6 +19,7 @@ import kotlin.math.sin
  */
 class FrameRenderer {
     private val map = MapPainter()
+    private val moments = MomentPainter()
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -27,7 +29,10 @@ class FrameRenderer {
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val trail = Path()
 
-    fun draw(canvas: Canvas, width: Int, height: Int, plan: Plan, frame: Int, look: Look, overlay: Overlay, tiles: TileSource?) {
+    fun draw(
+        canvas: Canvas, width: Int, height: Int, plan: Plan, frame: Int, look: Look, overlay: Overlay, tiles: TileSource?,
+        photos: PhotoSource? = null,
+    ) {
         val f = frame.coerceIn(0, plan.frameCount - 1)
         val cameraWidth = plan.cameraWidth[f]
         val scale = width / cameraWidth
@@ -61,6 +66,17 @@ class FrameRenderer {
         if (look.showPoints) drawPoints(canvas, plan, f, left, top, scale, width, height, beyond, look, lineWidth)
         drawMarkers(canvas, plan, f, left, top, scale, look, lineWidth)
         if (plan.turns) canvas.restoreToCount(turned)
+        if (photos != null && plan.moments.isNotEmpty()) {
+            val title = OverlayLayout.topInset(width.toDouble() / height, overlay.title != null, overlay.hasSubtitle) * height
+            val angle = plan.cameraAngle[f]
+            moments.draw(canvas, width, height, plan, f, photos, title.toFloat()) { x, y, out ->
+                // Where the point is on the upright map, turned with the map around the middle.
+                val dx = (x - left) * scale - width / 2.0
+                val dy = (y - top) * scale - height / 2.0
+                out[0] = (width / 2.0 + cos(angle) * dx - sin(angle) * dy).toFloat()
+                out[1] = (height / 2.0 + sin(angle) * dx + cos(angle) * dy).toFloat()
+            }
+        }
         drawOverlay(canvas, width, height, plan, f, look, overlay)
         drawAttribution(canvas, width, height, look)
     }

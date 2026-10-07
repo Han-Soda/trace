@@ -8,6 +8,7 @@ import io.github.hansoda.trace.motion.Plan
 import io.github.hansoda.trace.render.FrameRenderer
 import io.github.hansoda.trace.render.Look
 import io.github.hansoda.trace.render.Overlay
+import io.github.hansoda.trace.render.PhotoSource
 import io.github.hansoda.trace.render.TileKey
 import io.github.hansoda.trace.render.TileMath
 import io.github.hansoda.trace.render.TileSource
@@ -19,7 +20,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /** Renders a [Plan] to an MP4 video or a PNG image and saves it to the shared folders. */
-class VideoExporter(private val context: Context, private val tiles: TileStore) {
+class VideoExporter(private val context: Context, private val tiles: TileStore, private val photos: PhotoSource? = null) {
     sealed interface Progress {
         /** Downloading map tiles. */
         data class Map(val done: Int, val total: Int) : Progress
@@ -43,7 +44,7 @@ class VideoExporter(private val context: Context, private val tiles: TileStore) 
             AvcEncoder(width, height, plan.fps, VideoSizes.bitRate(width, height, plan.fps), file).use { encoder ->
                 for (frame in 0 until plan.frameCount) {
                     ensureActive()
-                    renderer.draw(canvas, width, height, plan, frame, look, overlay, source)
+                    renderer.draw(canvas, width, height, plan, frame, look, overlay, source, photos)
                     encoder.encode(bitmap)
                     if (frame % 3 == 0 || frame == plan.frameCount - 1) onProgress(Progress.Frames(frame + 1, plan.frameCount))
                 }
@@ -66,7 +67,7 @@ class VideoExporter(private val context: Context, private val tiles: TileStore) 
         downloadTiles(plan, last..last, width, height, look, onProgress)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         try {
-            FrameRenderer().draw(Canvas(bitmap), width, height, plan, last, look, overlay) { tiles.tileNow(it) }
+            FrameRenderer().draw(Canvas(bitmap), width, height, plan, last, look, overlay, { tiles.tileNow(it) }, photos)
             ensureActive()
             MediaSaver.saveImage(context, name) { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
         } finally {

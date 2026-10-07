@@ -11,19 +11,23 @@ things while the preview plays, and export an MP4 to `Movies/Trace`.
   calendar: one stretch of days, or any days you like. Days with travel are marked. Separate days
   aren't joined by a line; the video glides from one to the next.
 - **Camera**: *Lock on* (the default) keeps the trace's dot in the middle while the map moves
-  under it. *Smooth* glides after the dot, looking a little ahead and rounding corners. *Heading
-  up* turns the map so the way ahead always points up, like a car's navigation; place names are
-  hidden in it so they never turn upside down. All three zoom out for long trips and back in for
-  short ones, and **Distance** sets how close they stay. **Camera lag** lets *Lock on* and
-  *Heading up* trail the dot and catch up with it, like a game's camera; at 0% the dot stays dead
-  centre. *Shots* holds a steady view of each part of the trip and glides to the next. *Whole
-  route* keeps everything in view. **Zoom smoothness** sets how gently and how often the zoom
-  changes, and **Pause at stops** lets the trace wait a moment at long stops; off, it never stops
-  moving.
+  under it. *Smooth* holds the map still while the dot crosses the frame, then glides on when the
+  dot nears the edge. *Heading up* turns the map so the way ahead always points up, like a car's
+  navigation; place names are hidden in it so they never turn upside down. All three zoom out for
+  long trips and back in for short ones, and **Distance** sets how close they stay. **Camera lag**
+  lets *Lock on* and *Heading up* trail the dot and catch up with it, like a game's camera; at 0%
+  the dot stays dead centre. *Shots* holds a steady view of each part of the trip and glides to
+  the next. *Whole route* keeps everything in view. **Zoom smoothness** sets how gently and how
+  often the zoom changes, and **Pause at stops** lets the trace wait a moment at long stops; off,
+  it never stops moving.
 - **Route**: **Travel points** sets how many points of your history draw the route, from a few
   dozen for clean, simple lines up to every point. **Remove GPS errors** opens a map of every
   point: tap one, or two to select the stretch between them, and remove it. Likely errors are
   ringed and one tap away. Removals can be undone and are kept when you import a newer export.
+- **Photos and videos**: add them from the gallery, and each pops up on the route where and when
+  it was taken while the trace waits, then shrinks into a pin that stays on the map. Videos play
+  their first 3 seconds; **Each photo** sets how long a photo stays. Trace places them by the time
+  they were taken, so ones without a date are left out.
 - **Style**: Paper, Ink and Streets are free maps drawn on the device from OpenFreeMap, with
   streets, water, parks and place names; Light, Dark and Voyager come from CARTO and need a key.
   Map labels on or off.
@@ -33,13 +37,17 @@ things while the preview plays, and export an MP4 to `Movies/Trace`.
   on or off.
 - **Video**: 9:16, 4:5, 1:1 or 16:9, 6 to 60 seconds, 720p or 1080p, 30 or 60 fps.
 
-You can also save the final overview as an image, and share either straight from the app.
+You can also save the final overview as an image, and share either straight from the app. Trace
+is in English or Russian, whatever the phone's language: **Settings → Language**.
 
 ## Getting your Timeline
 
 On your phone: **Settings → Location → Location services → Timeline → Export Timeline data**.
-The **Open Timeline settings** button on Trace's start screen takes you there, or as close as
-your phone allows. Open the saved `Timeline.json` in Trace, or share it to Trace.
+The **Export from Timeline** button on Trace's start screen, and in its settings, takes you
+there, or as close as your phone allows. When the export asks where to save, pick **Trace** from
+the list of places: Trace imports the file as soon as you come back to it. You can also save it
+anywhere and open or share it to Trace. Google offers no way for an app to fetch the Timeline by
+itself, so this is as close to one tap as it gets.
 
 Trace also reads the iPhone export, and from Google Takeout `Records.json` and the monthly
 Semantic Location History files, including the ZIP archive itself. The imported history stays
@@ -65,9 +73,10 @@ time. The travelling cameras zoom to the scale of the current scene, pulling out
 and diving in after landing. *Lock on* keeps the dot centred, rounding its path only enough that
 the map doesn't jerk at corners; with lag, a critically damped spring chases the dot instead,
 taking up to 1.2 seconds to catch up and never letting it get more than a quarter of the frame
-ahead. *Smooth* looks a little ahead of the dot along a more smoothed path; *Heading up* averages
-the direction of travel over a second or two and turns the map at most 100° a second. Every video
-ends by easing out to the whole route, north up.
+ahead. *Smooth* holds a frame until the dot gets within a fifth of its edge, then glides on to
+leave the dot a fifth behind the middle; *Heading up* averages the direction of travel over a
+second or two and turns the map at most 100° a second. Every video ends by easing out to the whole
+route, north up.
 
 ## Building
 

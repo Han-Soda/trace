@@ -1,5 +1,6 @@
 package io.github.hansoda.trace.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -54,6 +55,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -302,6 +305,7 @@ private fun Controls(state: ScreenState, actions: ScreenActions, onEditRoute: ()
         state.range?.let { Dates(it, state, actions) }
         Camera(s, actions)
         RouteSection(state, actions, onEditRoute)
+        Photos(state, actions)
         Style(s, actions)
         TextOptions(state, actions)
         VideoOptions(s, actions)
@@ -471,6 +475,104 @@ private fun RouteSection(state: ScreenState, actions: ScreenActions, onEditRoute
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
             )
             TextButton(onClick = actions.restorePoints) { Text(stringResource(R.string.restore_all)) }
+        }
+    }
+}
+
+@Composable
+private fun Photos(state: ScreenState, actions: ScreenActions) {
+    val photos = state.photos
+    SectionTitle(stringResource(R.string.photos))
+    Text(
+        stringResource(R.string.photos_hint),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    val adding = state.mediaAdding as? MediaAdding.Working
+    Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        FilledTonalButton(onClick = actions.addMedia, enabled = adding == null) {
+            Icon(TraceIcons.AddPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(stringResource(R.string.add_photos), modifier = Modifier.padding(start = 8.dp))
+        }
+        if (adding != null) {
+            CircularProgressIndicator(Modifier.padding(start = 14.dp).size(18.dp), strokeWidth = 2.dp)
+            Text(
+                stringResource(R.string.adding_photos, minOf(adding.done + 1, adding.total), adding.total),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
+    }
+    (state.mediaAdding as? MediaAdding.Finished)?.let { done ->
+        val parts = buildList {
+            add(pluralStringResource(R.plurals.photos_added, done.added, done.added))
+            if (done.otherDays > 0) add(pluralStringResource(R.plurals.photos_other_days, done.otherDays, done.otherDays))
+            if (done.undated > 0) add(pluralStringResource(R.plurals.photos_undated, done.undated, done.undated))
+            if (done.unreadable > 0) add(pluralStringResource(R.plurals.photos_unreadable, done.unreadable, done.unreadable))
+        }
+        Text(
+            parts.joinToString(". "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp).clickable(onClick = actions.dismissMediaNote),
+        )
+    }
+    if (photos.cards.isNotEmpty()) {
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 12.dp), horizontalArrangement = RowGap) {
+            for (card in photos.cards) PhotoThumbnail(card, onRemove = { actions.removeMedia(card.id) })
+        }
+    }
+    if (photos.otherDays > 0 && state.mediaAdding !is MediaAdding.Finished) {
+        Text(
+            pluralStringResource(R.plurals.photos_other_days, photos.otherDays, photos.otherDays),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+    if (photos.cards.any { !it.isClip }) {
+        val s = state.settings
+        val number = NumberFormat.getNumberInstance(LocalConfiguration.current.locales[0]).apply { maximumFractionDigits = 1 }
+        LabeledSlider(
+            label = stringResource(R.string.photo_seconds),
+            value = stringResource(R.string.photo_seconds_value, number.format(s.photoSeconds)),
+            position = s.photoSeconds,
+            onChange = { value -> actions.update { it.copy(photoSeconds = (value * 2).roundToInt() / 2f) } },
+            range = 1f..4f,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun PhotoThumbnail(card: PhotoCard, onRemove: () -> Unit) {
+    Box(
+        Modifier
+            .size(76.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        card.thumbnail?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+        if (card.isClip) {
+            Icon(
+                TraceIcons.Play,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.align(Alignment.BottomStart).padding(5.dp).size(18.dp).clip(CircleShape).background(Color(0x66000000)),
+            )
+        }
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(Color(0x99000000))
+                .clickable(onClickLabel = stringResource(R.string.remove), onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(TraceIcons.Close, contentDescription = stringResource(R.string.remove), tint = Color.White, modifier = Modifier.size(14.dp))
         }
     }
 }

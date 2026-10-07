@@ -33,5 +33,17 @@
                 <data android:mimeType="application/zip" />
             </intent-filter>
         </activity>
+
+        <!-- Lets Timeline's export save straight into Trace. -->
+        <provider
+            android:name=".data.TimelineInbox"
+            android:authorities="${applicationId}.inbox"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
     </application>
 </manifest>

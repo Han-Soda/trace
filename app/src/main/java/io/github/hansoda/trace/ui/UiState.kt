@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
 import io.github.hansoda.trace.route.DayActivity
 import io.github.hansoda.trace.route.DaySelection
+import io.github.hansoda.trace.settings.AppLanguage
 import io.github.hansoda.trace.settings.TraceSettings
 
 enum class RangePreset { DAY, WEEK, MONTH, YEAR, ALL }
@@ -21,6 +22,25 @@ sealed interface ExportState {
     data class Failed(val message: String) : ExportState
 
     enum class Stage { PREPARING, MAP, FRAMES, SAVING }
+}
+
+/** Adding photos and videos: under way, or what came of it. */
+sealed interface MediaAdding {
+    data class Working(val done: Int, val total: Int) : MediaAdding
+
+    data class Finished(val added: Int, val undated: Int, val unreadable: Int, val otherDays: Int) : MediaAdding
+}
+
+/** A photo or clip on the chosen days, as the screen lists it. */
+@Immutable
+data class PhotoCard(val id: String, val isClip: Boolean, val seconds: Double, val thumbnail: ImageBitmap?)
+
+/** The photos and clips on the chosen days, and how many others are kept. */
+@Immutable
+data class PhotosSummary(val cards: List<PhotoCard>, val otherDays: Int) {
+    companion object {
+        val EMPTY = PhotosSummary(emptyList(), 0)
+    }
 }
 
 sealed interface KeyTest {
@@ -68,6 +88,9 @@ data class ScreenState(
     val activity: DayActivity?,
     /** Fixes removed by hand as GPS errors, across the whole history. */
     val removedPoints: Int,
+    val language: AppLanguage,
+    val photos: PhotosSummary,
+    val mediaAdding: MediaAdding?,
 )
 
 /** Everything the screen can ask for. */
@@ -90,4 +113,8 @@ class ScreenActions(
     val openKeyPage: () -> Unit,
     val clearCache: () -> Unit,
     val removeTimeline: () -> Unit,
+    val setLanguage: (AppLanguage) -> Unit,
+    val addMedia: () -> Unit,
+    val removeMedia: (String) -> Unit,
+    val dismissMediaNote: () -> Unit,
 )

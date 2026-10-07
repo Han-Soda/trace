@@ -207,19 +207,33 @@ class PlannerTest {
         }
     }
 
-    @Test
-    fun followCameraTravelsWithTheDot() {
-        val plan = plan(camera = CameraMode.FOLLOW)
-        var moving = 0
+    /** How far the dot moves across the screen, for each frame width it moves across the map. */
+    private fun screenShare(plan: Plan): Double {
+        var onScreen = 0.0
+        var onMap = 0.0
         for (f in 1..plan.endingFrame) {
-            if (plan.cameraX[f] != plan.cameraX[f - 1] || plan.cameraY[f] != plan.cameraY[f - 1]) moving++
+            val (x0, y0) = onScreen(plan, f - 1, plan.headX[f - 1], plan.headY[f - 1], 9.0 / 16)
+            val (x1, y1) = onScreen(plan, f, plan.headX[f], plan.headY[f], 9.0 / 16)
+            onScreen += hypot(x1 - x0, y1 - y0)
+            onMap += hypot((plan.headX[f] - plan.headX[f - 1]) / plan.cameraWidth[f], (plan.headY[f] - plan.headY[f - 1]) / plan.cameraWidth[f] * 9 / 16)
         }
-        assertTrue("moving $moving of ${plan.endingFrame}", moving >= plan.endingFrame * 0.95)
-        // The dot stays near the middle, a little behind where the camera looks, until the
-        // camera starts easing out to the whole route.
-        for (f in 0..(plan.endingFrame * 0.8).toInt()) {
-            val dx = abs(plan.headX[f] - plan.cameraX[f]) / plan.cameraWidth[f]
-            assertTrue("frame $f dx $dx", dx <= 0.36)
+        return onScreen / onMap
+    }
+
+    @Test
+    fun glideHoldsTheFrameWhileLockOnMovesTheMap() {
+        // Gliding, the map mostly holds still and the dot crosses the screen; locked on, the
+        // dot holds its place and the map moves.
+        val gliding = screenShare(plan(camera = CameraMode.FOLLOW))
+        val locked = screenShare(plan(camera = CameraMode.TRACK))
+        assertTrue("gliding $gliding", gliding > 0.6)
+        assertTrue("locked $locked", locked < 0.15)
+        // The gliding camera keeps the dot well inside the frame, under the title.
+        val plan = plan(camera = CameraMode.FOLLOW)
+        for (f in 0..plan.endingFrame) {
+            val (dx, dy) = onScreen(plan, f, plan.headX[f], plan.headY[f], 9.0 / 16)
+            assertTrue("frame $f dx $dx", abs(dx) <= 0.45)
+            assertTrue("frame $f dy $dy", dy in -0.35..0.45)
         }
     }
 
@@ -357,6 +371,102 @@ class PlannerTest {
             }
             assertFalse(plan.gliding(0))
         }
+    }
+
+    /** Seconds the dot spends on route points [from]..[to]. */
+    private fun secondsOn(plan: Plan, from: Int, to: Int): Double =
+        (0..plan.endingFrame).count { plan.headSegment[it] in from until to } / plan.fps.toDouble()
+
+    @Test
+    fun gpsWobbleDoesNotSlowTheDot() {
+        // Two walks the same length, the second with GPS wobbling 15 m either side of the way:
+        // nearly three times as far, point to point.
+        val minute = 60_000L
+        val lats = ArrayList<Double>()
+        val lons = ArrayList<Double>()
+        val times = ArrayList<Long>()
+        val dwell = ArrayList<Long>()
+        for (i in 0..40) {
+            lats += 48.85 + 0.0001 * i
+            lons += 2.35
+            times += i * minute
+            dwell += if (i == 40) 30 * minute else 0
+        }
+        for (i in 0..40) {
+            lats += 48.855 + 0.0001 * i
+            lons += 2.35 + if (i % 2 == 0) 0.0002 else -0.0002
+            times += (80 + i) * minute
+            dwell += 0
+        }
+        val route = route(lats, lons, times.toLongArray(), dwell.toLongArray())
+        for (camera in CameraMode.entries) {
+            val plan = plan(camera = camera, route = route)
+            val straight = secondsOn(plan, 0, 40)
+            val wobbly = secondsOn(plan, 41, 81)
+            assertTrue("$camera straight $straight wobbly $wobbly", wobbly in straight * 0.7..straight * 1.4)
+        }
+    }
+
+    @Test
+    fun shortWalksKeepThePace() {
+        // A drive, a short walk between two stops, and another drive.
+        val minute = 60_000L
+        val lats = ArrayList<Double>()
+        val lons = ArrayList<Double>()
+        val times = ArrayList<Long>()
+        val dwell = ArrayList<Long>()
+        fun add(lat: Double, lon: Double, time: Long, wait: Long = 0) {
+            lats += lat
+            lons += lon
+            times += time
+            dwell += wait
+        }
+        for (i in 0..20) add(48.70 + 0.008 * i, 2.20, i * minute, if (i == 20) 20 * minute else 0)
+        for (i in 1..6) add(48.86 + 0.0004 * i, 2.20 + 0.0003 * i, (40 + 2 * i) * minute, if (i == 6) 20 * minute else 0)
+        for (i in 1..20) add(48.8624 + 0.008 * i, 2.2018, (80 + i) * minute)
+        val route = route(lats, lons, times.toLongArray(), dwell.toLongArray())
+        for (camera in listOf(CameraMode.TRACK, CameraMode.FOLLOW, CameraMode.HEADING)) {
+            val plan = plan(camera = camera, route = route)
+            // The dot's speed across the map, in frame widths a second.
+            fun speed(f: Int) = hypot(plan.headX[f] - plan.headX[f - 1], plan.headY[f] - plan.headY[f - 1]) / plan.cameraWidth[f] * plan.fps
+            val all = (1..plan.endingFrame).filter { plan.headSegment[it] < route.size - 1 }.map(::speed).sorted()
+            val median = all[all.size / 2]
+            val walk = (1..plan.endingFrame).filter { plan.headSegment[it] in 21 until 26 }.map(::speed)
+            val walking = walk.average()
+            assertTrue("$camera walking $walking median $median", walking > median * 0.6)
+        }
+    }
+
+    @Test
+    fun photosWaitWhereTheyWereTaken() {
+        val route = trip()
+        val inLisbon = route.times[10] + 30_000
+        val inBerlin = route.times[60]
+        val moments = listOf(
+            Moment("lisbon", inLisbon, 2.0),
+            Moment("berlin", inBerlin, 2.0, frames = 36, fps = 12.0),
+            Moment("before", route.times.first() - 3 * 3_600_000L, 2.0),
+        )
+        val plan = Planner.plan(route, MotionSettings(20.0, 30, 9.0 / 16, 0.6, 0.1, CameraMode.TRACK, moments = moments))
+        assertEquals(listOf("lisbon", "berlin"), plan.moments.map { it.moment.id })
+        assertEquals(10, plan.moments[0].point)
+        assertEquals(60, plan.moments[1].point)
+        for (shown in plan.moments) {
+            val seconds = (shown.endFrame - shown.startFrame) / plan.fps.toDouble()
+            assertTrue("${shown.moment.id} $seconds", seconds in 1.8..2.2)
+            // The dot waits at the photo's place while it's on screen.
+            for (f in shown.startFrame..shown.endFrame) {
+                assertEquals(route.x[shown.point], plan.headX[f], 1e-12)
+                assertEquals(route.y[shown.point], plan.headY[f], 1e-12)
+            }
+        }
+        // However many there are, they take at most half the journey and the dot still arrives.
+        val many = List(60) { Moment("p$it", route.times[it % route.size], 2.0) }
+        val crowded = Planner.plan(route, MotionSettings(20.0, 30, 9.0 / 16, 0.6, 0.1, CameraMode.TRACK, moments = many))
+        val showing = crowded.moments.sumOf { it.endFrame - it.startFrame } / crowded.fps.toDouble()
+        assertTrue("showing $showing", showing <= crowded.endingFrame / crowded.fps.toDouble() * 0.5 + 0.5)
+        assertTrue(crowded.moments.size >= 5)
+        assertEquals(route.size - 1, crowded.headSegment[crowded.frameCount - 1])
     }
 
     @Test

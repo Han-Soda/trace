@@ -21,6 +21,7 @@ class SettingsStore(context: Context) {
             },
             cameraDistance = CameraDistance.fromId(prefs.getString(CAMERA_DISTANCE, null)),
             cameraLag = prefs.getFloat(CAMERA_LAG, defaults.cameraLag).coerceIn(0f, 1f),
+            photoSeconds = prefs.getFloat(PHOTO_SECONDS, defaults.photoSeconds).coerceIn(1f, 4f),
             smoothness = prefs.getFloat(SMOOTHNESS, defaults.smoothness).coerceIn(0f, 1f),
             pauseAtStops = prefs.getBoolean(PAUSE, defaults.pauseAtStops),
             pointsFraction = prefs.getFloat(POINTS, defaults.pointsFraction).coerceIn(0f, 1f),
@@ -59,6 +60,7 @@ class SettingsStore(context: Context) {
             putString(CAMERA, settings.camera.id)
             putString(CAMERA_DISTANCE, settings.cameraDistance.id)
             putFloat(CAMERA_LAG, settings.cameraLag)
+            putFloat(PHOTO_SECONDS, settings.photoSeconds)
             putBoolean(PAUSE, settings.pauseAtStops)
             putFloat(SMOOTHNESS, settings.smoothness)
             putFloat(POINTS, settings.pointsFraction)
@@ -88,6 +90,7 @@ class SettingsStore(context: Context) {
         const val CAMERA = "camera"
         const val CAMERA_DISTANCE = "camera_distance"
         const val CAMERA_LAG = "camera_lag"
+        const val PHOTO_SECONDS = "photo_seconds"
         const val PAUSE = "pause_at_stops"
         const val SMOOTHNESS = "smoothness"
         const val POINTS = "points"

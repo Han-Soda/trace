@@ -11,21 +11,23 @@ import androidx.compose.ui.graphics.nativeCanvas
 import io.github.hansoda.trace.motion.Plan
 import io.github.hansoda.trace.render.FrameRenderer
 import io.github.hansoda.trace.render.Look
+import io.github.hansoda.trace.media.PhotoStore
 import io.github.hansoda.trace.render.Overlay
 import io.github.hansoda.trace.tiles.TileStore
 
 /** Draws one frame of the video with the same renderer the export uses. */
 @Composable
-fun MapPreview(plan: Plan, look: Look, overlay: Overlay, tiles: TileStore, seconds: Float, modifier: Modifier = Modifier) {
+fun MapPreview(plan: Plan, look: Look, overlay: Overlay, tiles: TileStore, photos: PhotoStore, seconds: Float, modifier: Modifier = Modifier) {
     val renderer = remember { FrameRenderer() }
     val tileVersion by tiles.version.collectAsState()
+    val photoVersion by photos.version.collectAsState()
     Canvas(modifier) {
-        // Reading the version here redraws the frame whenever a tile arrives.
-        if (tileVersion < 0) return@Canvas
+        // Reading the versions here redraws the frame whenever a tile or photo arrives.
+        if (tileVersion < 0 || photoVersion < 0) return@Canvas
         drawIntoCanvas { canvas ->
             renderer.draw(
                 canvas.nativeCanvas, size.width.toInt(), size.height.toInt(),
-                plan, plan.frameAt(seconds.toDouble()), look, overlay, tiles,
+                plan, plan.frameAt(seconds.toDouble()), look, overlay, tiles, photos.live,
             )
         }
     }

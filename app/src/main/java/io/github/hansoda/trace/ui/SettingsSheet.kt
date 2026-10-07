@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.hansoda.trace.R
+import io.github.hansoda.trace.settings.AppLanguage
 import io.github.hansoda.trace.settings.Quality
 import io.github.hansoda.trace.settings.Units
 
@@ -94,6 +95,9 @@ fun SettingsSheet(state: ScreenState, actions: ScreenActions, onDismiss: () -> U
                     Text(stringResource(R.string.open_timeline_settings), modifier = Modifier.padding(start = 8.dp))
                 }
             }
+
+            SectionTitle(stringResource(R.string.language))
+            Choice(AppLanguage.entries, state.language, { it.nativeName }, actions.setLanguage)
 
             SectionTitle(stringResource(R.string.about))
             Text(

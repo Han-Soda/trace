@@ -8,6 +8,15 @@ fun interface TileSource {
     fun tile(key: TileKey): Bitmap?
 }
 
+/** Supplies the pictures of photos and clips on the route. Returning null draws a blank card. */
+interface PhotoSource {
+    /** Frame [index] of a clip, or the photo itself for 0. */
+    fun frame(id: String, index: Int): Bitmap?
+
+    /** A small square picture, for the pin left on the map. */
+    fun thumbnail(id: String): Bitmap?
+}
+
 /** How the route looks. */
 data class Look(
     val map: MapStyle,

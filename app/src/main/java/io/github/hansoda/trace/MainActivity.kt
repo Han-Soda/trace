@@ -2,6 +2,7 @@ package io.github.hansoda.trace
 
 import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -12,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
@@ -22,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import io.github.hansoda.trace.settings.AppLanguage
 import io.github.hansoda.trace.ui.ExportState
 import io.github.hansoda.trace.ui.MapPreview
 import io.github.hansoda.trace.ui.RouteEditor
@@ -33,11 +36,20 @@ import io.github.hansoda.trace.ui.TraceTheme
 class MainActivity : ComponentActivity() {
     private val viewModel: TraceViewModel by viewModels()
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguage.apply(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) receive(intent)
         setContent { TraceTheme { App() } }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.importInbox()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -70,9 +82,14 @@ class MainActivity : ComponentActivity() {
         val cacheSize by viewModel.cacheSize.collectAsState()
         val activity by viewModel.activity.collectAsState()
         val removedPoints by viewModel.removedPoints.collectAsState()
+        val photos by viewModel.photosOnDays.collectAsState()
+        val mediaAdding by viewModel.mediaAdding.collectAsState()
 
         val openFiles = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
             viewModel.import(uris)
+        }
+        val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED)) { uris ->
+            viewModel.addMedia(uris)
         }
         val pendingImage = remember { booleanArrayOf(false) }
         val storage = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -109,6 +126,19 @@ class MainActivity : ComponentActivity() {
                 openKeyPage = { browse("https://carto.com/basemaps/apikey/") },
                 clearCache = viewModel::clearCache,
                 removeTimeline = viewModel::removeTimeline,
+                setLanguage = { language ->
+                    if (language != AppLanguage.current(this)) {
+                        AppLanguage.choose(this, language)
+                        viewModel.languageChanged()
+                        recreate()
+                    }
+                },
+                addMedia = {
+                    viewModel.dismissMediaNote()
+                    pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                },
+                removeMedia = viewModel::removeMedia,
+                dismissMediaNote = viewModel::dismissMediaNote,
             )
         }
 
@@ -127,6 +157,9 @@ class MainActivity : ComponentActivity() {
             version = BuildConfig.VERSION_NAME,
             activity = activity,
             removedPoints = removedPoints,
+            language = AppLanguage.current(this),
+            photos = photos,
+            mediaAdding = mediaAdding,
         )
 
         val view = LocalView.current
@@ -139,7 +172,7 @@ class MainActivity : ComponentActivity() {
         TraceScreen(
             state,
             actions,
-            preview = { modifier, seconds -> plan?.let { MapPreview(it, look, overlay, viewModel.tiles, seconds, modifier) } },
+            preview = { modifier, seconds -> plan?.let { MapPreview(it, look, overlay, viewModel.tiles, viewModel.photos, seconds, modifier) } },
             routeEditor = { onClose ->
                 val data by viewModel.range.collectAsState()
                 val suspects by viewModel.suspects.collectAsState()
@@ -213,5 +246,6 @@ class MainActivity : ComponentActivity() {
         val STORAGE = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
         const val TIMELINE_SETTINGS = "com.google.android.gms.location.settings.LOCATION_HISTORY"
         const val GOOGLE_PLAY_SERVICES = "com.google.android.gms"
+        const val MAX_PICKED = 50
     }
 }

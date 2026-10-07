@@ -6,8 +6,9 @@
     <string name="open_timeline">Open Timeline file</string>
     <string name="reading_file">Reading… %1$d%%</string>
     <string name="how_to_export_title">Getting your Timeline</string>
-    <string name="how_to_export_steps">On your phone, open Settings › Location › Location services › Timeline › Export Timeline data, and save the file. Then open it here.</string>
-    <string name="open_timeline_settings">Open Timeline settings</string>
+    <string name="how_to_export_steps">Tap the button to open your phone’s Timeline settings and choose Export Timeline data. When it asks where to save, pick Trace from the list of places: Trace imports it as soon as you come back.</string>
+    <string name="open_timeline_settings">Export from Timeline</string>
+    <string name="inbox_summary">Import into Trace</string>
     <string name="how_to_export_other">Trace also reads the iPhone export, and Records.json and Semantic Location History from Google Takeout, ZIP archives included.</string>
     <string name="import_failed">Couldn’t open the file</string>
     <string name="error_not_timeline">This file isn’t a Google Timeline export.</string>
@@ -58,7 +59,7 @@
     <string name="camera_shots">Shots</string>
     <string name="camera_whole">Whole route</string>
     <string name="camera_track_hint">The dot stays in the middle and the map moves under it.</string>
-    <string name="camera_follow_hint">Glides after the dot, looking ahead and rounding corners.</string>
+    <string name="camera_follow_hint">The map holds still while the dot crosses it, then glides on when the dot nears the edge.</string>
     <string name="camera_heading_hint">The map turns so the way ahead points up. Place names are hidden so they don’t turn upside down.</string>
     <string name="camera_distance">Distance</string>
     <string name="distance_close">Close</string>
@@ -156,6 +157,29 @@
     <string name="clear">Clear</string>
     <string name="replace">Replace</string>
     <string name="remove">Remove</string>
+    <string name="language">Language</string>
+    <string name="photos">Photos and videos</string>
+    <string name="photos_hint">Add photos and videos from these days. Each pops up where you took it while the trace waits, then stays as a pin on the map. Videos play their first 3 seconds.</string>
+    <string name="add_photos">Add</string>
+    <string name="adding_photos">Adding %1$d of %2$d…</string>
+    <string name="photo_seconds">Each photo</string>
+    <string name="photo_seconds_value">%1$s s</string>
+    <plurals name="photos_added">
+        <item quantity="one">%d added</item>
+        <item quantity="other">%d added</item>
+    </plurals>
+    <plurals name="photos_undated">
+        <item quantity="one">%d had no date, so it can’t be placed on the route</item>
+        <item quantity="other">%d had no date, so they can’t be placed on the route</item>
+    </plurals>
+    <plurals name="photos_unreadable">
+        <item quantity="one">%d couldn’t be read</item>
+        <item quantity="other">%d couldn’t be read</item>
+    </plurals>
+    <plurals name="photos_other_days">
+        <item quantity="one">%d more is from other days</item>
+        <item quantity="other">%d more are from other days</item>
+    </plurals>
     <string name="about">About</string>
     <string name="about_text">Trace %1$s. Maps © OpenStreetMap contributors, OpenFreeMap, OpenMapTiles and CARTO. Coastlines from Natural Earth.</string>
 </resources>

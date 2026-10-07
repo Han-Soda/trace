@@ -142,6 +142,12 @@ class TileStore(private val context: Context) : TileSource {
 
     fun cacheBytes(): Long = root.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
 
+    /** Draws the free maps again, for place names in a newly chosen language. */
+    fun forgetDrawn() {
+        memory.evictAll()
+        _version.update { it + 1 }
+    }
+
     fun clear() {
         root.deleteRecursively()
         memory.evictAll()

@@ -77,6 +77,8 @@ data class TraceSettings(
     val cameraDistance: CameraDistance = CameraDistance.MEDIUM,
     /** How far a lock-on or heading-up camera trails the dot before catching up, 0–1. */
     val cameraLag: Float = 0.3f,
+    /** Seconds each photo stays on screen; clips play their own length. */
+    val photoSeconds: Float = 2f,
     val smoothness: Float = 0.6f,
     /** Off, the dot never stops moving. */
     val pauseAtStops: Boolean = false,

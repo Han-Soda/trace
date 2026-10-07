@@ -4,8 +4,9 @@
     <string name="open_timeline">Открыть файл хронологии</string>
     <string name="reading_file">Чтение… %1$d%%</string>
     <string name="how_to_export_title">Как получить хронологию</string>
-    <string name="how_to_export_steps">На телефоне откройте Настройки › Местоположение › Службы геолокации › Хронология › Экспорт данных хронологии и сохраните файл. Затем откройте его здесь.</string>
-    <string name="open_timeline_settings">Открыть настройки хронологии</string>
+    <string name="how_to_export_steps">Нажмите кнопку: откроются настройки Хронологии на телефоне. Выберите «Экспорт данных хронологии», а когда спросят, куда сохранить, выберите Trace в списке мест. Trace загрузит файл сам, как только вы вернётесь.</string>
+    <string name="open_timeline_settings">Экспорт из Хронологии</string>
+    <string name="inbox_summary">Загрузить в Trace</string>
     <string name="how_to_export_other">Trace также читает экспорт с iPhone, Records.json и «Семантическую историю местоположений» из Google Takeout, в том числе в ZIP-архивах.</string>
     <string name="import_failed">Не удалось открыть файл</string>
     <string name="error_not_timeline">Это не экспорт хронологии Google.</string>
@@ -62,7 +63,7 @@
     <string name="camera_shots">Кадры</string>
     <string name="camera_whole">Весь маршрут</string>
     <string name="camera_track_hint">Точка всегда в центре, а карта движется под ней.</string>
-    <string name="camera_follow_hint">Плавно идёт за точкой, заглядывает вперёд и срезает углы.</string>
+    <string name="camera_follow_hint">Карта стоит, пока точка идёт по кадру, и плавно переезжает, когда точка подходит к краю.</string>
     <string name="camera_heading_hint">Карта поворачивается так, чтобы путь шёл вверх. Названия мест скрыты, чтобы не переворачивались.</string>
     <string name="camera_distance">Приближение</string>
     <string name="distance_close">Близко</string>
@@ -166,6 +167,37 @@
     <string name="clear">Очистить</string>
     <string name="replace">Заменить</string>
     <string name="remove">Удалить</string>
+    <string name="language">Язык</string>
+    <string name="photos">Фото и видео</string>
+    <string name="photos_hint">Добавьте фото и видео с этих дней. Каждое появится там, где было снято, пока точка ждёт, а потом останется значком на карте. Из видео показываются первые 3 секунды.</string>
+    <string name="add_photos">Добавить</string>
+    <string name="adding_photos">Добавляю %1$d из %2$d…</string>
+    <string name="photo_seconds">Каждое фото</string>
+    <string name="photo_seconds_value">%1$s с</string>
+    <plurals name="photos_added">
+        <item quantity="one">Добавлено %d</item>
+        <item quantity="few">Добавлено %d</item>
+        <item quantity="many">Добавлено %d</item>
+        <item quantity="other">Добавлено %d</item>
+    </plurals>
+    <plurals name="photos_undated">
+        <item quantity="one">%d без даты, его не поставить на маршрут</item>
+        <item quantity="few">%d без даты, их не поставить на маршрут</item>
+        <item quantity="many">%d без даты, их не поставить на маршрут</item>
+        <item quantity="other">%d без даты, их не поставить на маршрут</item>
+    </plurals>
+    <plurals name="photos_unreadable">
+        <item quantity="one">%d не удалось прочитать</item>
+        <item quantity="few">%d не удалось прочитать</item>
+        <item quantity="many">%d не удалось прочитать</item>
+        <item quantity="other">%d не удалось прочитать</item>
+    </plurals>
+    <plurals name="photos_other_days">
+        <item quantity="one">Ещё %d — с других дней</item>
+        <item quantity="few">Ещё %d — с других дней</item>
+        <item quantity="many">Ещё %d — с других дней</item>
+        <item quantity="other">Ещё %d — с других дней</item>
+    </plurals>
     <string name="about">О приложении</string>
     <string name="about_text">Trace %1$s. Карты © участники OpenStreetMap, OpenFreeMap, OpenMapTiles и CARTO. Береговые линии — Natural Earth.</string>
 </resources>
