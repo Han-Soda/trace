@@ -13,6 +13,7 @@ import io.github.hansoda.trace.data.TimelineInfo
 import io.github.hansoda.trace.data.TimelineRepository
 import io.github.hansoda.trace.export.VideoExporter
 import io.github.hansoda.trace.export.VideoSizes
+import io.github.hansoda.trace.motion.CameraDistance
 import io.github.hansoda.trace.motion.CameraMode
 import io.github.hansoda.trace.motion.MotionSettings
 import io.github.hansoda.trace.motion.Plan
@@ -433,17 +434,20 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
         val seconds: Int,
         val format: VideoFormat,
         val camera: CameraMode,
+        val distance: CameraDistance,
+        val lag: Float,
         val smoothness: Float,
         val pause: Boolean,
         val title: Boolean,
         val subtitle: Boolean,
     ) {
         constructor(s: TraceSettings) : this(
-            s.durationSeconds, s.format, s.camera, s.smoothness, s.pauseAtStops, s.showTitle, s.showDate || s.showDistance,
+            s.durationSeconds, s.format, s.camera, s.cameraDistance, s.cameraLag, s.smoothness, s.pauseAtStops,
+            s.showTitle, s.showDate || s.showDistance,
         )
 
         fun motion(fps: Int, aspect: Double, inset: Double) =
-            MotionSettings(seconds.toDouble(), fps, aspect, smoothness.toDouble(), inset, camera, pause)
+            MotionSettings(seconds.toDouble(), fps, aspect, smoothness.toDouble(), inset, camera, pause, distance, lag.toDouble())
     }
 
     private companion object {

@@ -78,13 +78,17 @@ class VideoExporter(private val context: Context, private val tiles: TileStore) 
         plan: Plan, frames: IntRange, width: Int, height: Int, look: Look,
         onProgress: (Progress) -> Unit,
     ) {
-        val set = look.map.tileSet(look.labels)
-        val aspect = width.toDouble() / height
+        val set = FrameRenderer.tileSet(look, plan)
+        // A turning map covers a square around the frame, as the renderer draws it.
+        val mapWidth = if (plan.turns) FrameRenderer.turningSide(width, height) else width
+        val mapHeight = if (plan.turns) mapWidth else height
+        val aspect = mapWidth.toDouble() / mapHeight
         val keys = LinkedHashSet<TileKey>()
         for (f in frames) {
-            val zoom = TileMath.zoom(plan.cameraWidth[f], width)
+            val cameraWidth = plan.cameraWidth[f] * mapWidth / width
+            val zoom = TileMath.zoom(cameraWidth, mapWidth)
             for ((z, _) in TileMath.levels(zoom)) {
-                TileMath.forEachTile(z, plan.cameraX[f], plan.cameraY[f], plan.cameraWidth[f], aspect) { _, tileY, wrappedX ->
+                TileMath.forEachTile(z, plan.cameraX[f], plan.cameraY[f], cameraWidth, aspect) { _, tileY, wrappedX ->
                     keys += TileKey(set, z, wrappedX, tileY)
                 }
             }

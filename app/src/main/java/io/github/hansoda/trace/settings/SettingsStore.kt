@@ -1,6 +1,7 @@
 package io.github.hansoda.trace.settings
 
 import android.content.Context
+import io.github.hansoda.trace.motion.CameraDistance
 import io.github.hansoda.trace.motion.CameraMode
 import io.github.hansoda.trace.render.MapStyle
 import io.github.hansoda.trace.route.DaySelection
@@ -14,7 +15,12 @@ class SettingsStore(context: Context) {
         val defaults = TraceSettings()
         return TraceSettings(
             days = DaySelection.decode(prefs.getString(DAYS, null)) ?: legacyRange(),
-            camera = CameraMode.fromId(prefs.getString(CAMERA, null)),
+            camera = CameraMode.fromId(prefs.getString(CAMERA, null)).let {
+                // Follow was the default before Lock on existed; settings from then start on Lock on.
+                if (it == CameraMode.FOLLOW && !prefs.contains(CAMERA_LAG)) CameraMode.TRACK else it
+            },
+            cameraDistance = CameraDistance.fromId(prefs.getString(CAMERA_DISTANCE, null)),
+            cameraLag = prefs.getFloat(CAMERA_LAG, defaults.cameraLag).coerceIn(0f, 1f),
             smoothness = prefs.getFloat(SMOOTHNESS, defaults.smoothness).coerceIn(0f, 1f),
             pauseAtStops = prefs.getBoolean(PAUSE, defaults.pauseAtStops),
             pointsFraction = prefs.getFloat(POINTS, defaults.pointsFraction).coerceIn(0f, 1f),
@@ -51,6 +57,8 @@ class SettingsStore(context: Context) {
             remove(RANGE_END)
             if (settings.days != null) putString(DAYS, settings.days.encode()) else remove(DAYS)
             putString(CAMERA, settings.camera.id)
+            putString(CAMERA_DISTANCE, settings.cameraDistance.id)
+            putFloat(CAMERA_LAG, settings.cameraLag)
             putBoolean(PAUSE, settings.pauseAtStops)
             putFloat(SMOOTHNESS, settings.smoothness)
             putFloat(POINTS, settings.pointsFraction)
@@ -78,6 +86,8 @@ class SettingsStore(context: Context) {
         const val RANGE_END = "range_end"
         const val DAYS = "days"
         const val CAMERA = "camera"
+        const val CAMERA_DISTANCE = "camera_distance"
+        const val CAMERA_LAG = "camera_lag"
         const val PAUSE = "pause_at_stops"
         const val SMOOTHNESS = "smoothness"
         const val POINTS = "points"

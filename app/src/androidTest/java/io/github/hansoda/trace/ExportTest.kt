@@ -12,6 +12,7 @@ import io.github.hansoda.trace.data.Geo
 import io.github.hansoda.trace.data.Timeline
 import io.github.hansoda.trace.export.VideoExporter
 import io.github.hansoda.trace.export.VideoSizes
+import io.github.hansoda.trace.motion.CameraMode
 import io.github.hansoda.trace.motion.MotionSettings
 import io.github.hansoda.trace.motion.Planner
 import io.github.hansoda.trace.render.Look
@@ -67,6 +68,25 @@ class ExportTest {
             assertEquals(MediaFormat.MIMETYPE_VIDEO_AVC, format.getString(MediaFormat.KEY_MIME))
             assertEquals(width, format.getInteger(MediaFormat.KEY_WIDTH))
             assertTrue(format.getLong(MediaFormat.KEY_DURATION) > 2_500_000)
+            extractor.release()
+        } finally {
+            context.contentResolver.delete(uri, null, null)
+        }
+    }
+
+    @Test
+    fun exportsATurningMap() = runBlocking {
+        val (width, height) = VideoSizes.fit(360, 640, 30)
+        val settings = MotionSettings(3.0, 30, width.toDouble() / height, 0.6, camera = CameraMode.HEADING, lag = 0.5)
+        val plan = Planner.plan(route(), settings)
+        assertTrue(plan.turns)
+        val look = Look(MapStyle.STREETS, true, 0xFF2D7FF9.toInt(), 1f, false)
+        val uri = VideoExporter(context, TileStore(context)).video(plan, width, height, look, Overlay.NONE, "Trace test") {}
+        try {
+            val extractor = MediaExtractor()
+            extractor.setDataSource(context, uri, null)
+            assertEquals(1, extractor.trackCount)
+            assertTrue(extractor.getTrackFormat(0).getLong(MediaFormat.KEY_DURATION) > 2_500_000)
             extractor.release()
         } finally {
             context.contentResolver.delete(uri, null, null)

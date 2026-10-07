@@ -10,11 +10,16 @@ things while the preview plays, and export an MP4 to `Movies/Trace`.
 - **Dates**: day, week, month, year or everything, step back and forward, or pick dates in a
   calendar: one stretch of days, or any days you like. Days with travel are marked. Separate days
   aren't joined by a line; the video glides from one to the next.
-- **Camera**: *Follow* (the default) travels with the trace, zooming out for long trips and back
-  in for short ones, so the video never stands still. *Shots* holds a steady view of each part of
-  the trip and glides to the next. *Whole route* keeps everything in view. **Zoom smoothness**
-  sets how gently and how often the zoom changes, and **Pause at stops** lets the trace wait a
-  moment at long stops; off, it never stops moving.
+- **Camera**: *Lock on* (the default) keeps the trace's dot in the middle while the map moves
+  under it. *Smooth* glides after the dot, looking a little ahead and rounding corners. *Heading
+  up* turns the map so the way ahead always points up, like a car's navigation; place names are
+  hidden in it so they never turn upside down. All three zoom out for long trips and back in for
+  short ones, and **Distance** sets how close they stay. **Camera lag** lets *Lock on* and
+  *Heading up* trail the dot and catch up with it, like a game's camera; at 0% the dot stays dead
+  centre. *Shots* holds a steady view of each part of the trip and glides to the next. *Whole
+  route* keeps everything in view. **Zoom smoothness** sets how gently and how often the zoom
+  changes, and **Pause at stops** lets the trace wait a moment at long stops; off, it never stops
+  moving.
 - **Route**: **Travel points** sets how many points of your history draw the route, from a few
   dozen for clean, simple lines up to every point. **Remove GPS errors** opens a map of every
   point: tap one, or two to select the stretch between them, and remove it. Likely errors are
@@ -56,9 +61,13 @@ The route is cut into scenes at stops, at long jumps such as flights and at gaps
 days. Neighbouring scenes merge while none of them would have to zoom out by more than the
 smoothness allows. The dot moves at a steady pace across the screen, however far the camera is
 zoomed, so a walk and a flight read at the same speed; flights and jumps between days take a set
-time. The follow camera looks a little ahead of the dot along a smoothed path and zooms to the
-scale of the current scene, pulling out before a flight and diving in after landing. Every video
-ends by easing out to the whole route.
+time. The travelling cameras zoom to the scale of the current scene, pulling out before a flight
+and diving in after landing. *Lock on* keeps the dot centred, rounding its path only enough that
+the map doesn't jerk at corners; with lag, a critically damped spring chases the dot instead,
+taking up to 1.2 seconds to catch up and never letting it get more than a quarter of the frame
+ahead. *Smooth* looks a little ahead of the dot along a more smoothed path; *Heading up* averages
+the direction of travel over a second or two and turns the map at most 100° a second. Every video
+ends by easing out to the whole route, north up.
 
 ## Building
 

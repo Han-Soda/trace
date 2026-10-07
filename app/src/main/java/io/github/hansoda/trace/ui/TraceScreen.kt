@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import io.github.hansoda.trace.R
+import io.github.hansoda.trace.motion.CameraDistance
 import io.github.hansoda.trace.motion.CameraMode
 import io.github.hansoda.trace.render.MapStyle
 import io.github.hansoda.trace.route.PointBudget
@@ -376,16 +377,28 @@ private fun Dates(range: RangeSummary, state: ScreenState, actions: ScreenAction
 @Composable
 private fun Camera(s: TraceSettings, actions: ScreenActions) {
     SectionTitle(stringResource(R.string.camera))
-    val names = mapOf(
-        CameraMode.FOLLOW to stringResource(R.string.camera_follow),
-        CameraMode.SHOTS to stringResource(R.string.camera_shots),
-        CameraMode.WHOLE to stringResource(R.string.camera_whole),
-    )
-    Choice(CameraMode.entries, s.camera, { names.getValue(it) }, { camera -> actions.update { it.copy(camera = camera) } })
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = RowGap) {
+        val names = mapOf(
+            CameraMode.TRACK to R.string.camera_track,
+            CameraMode.FOLLOW to R.string.camera_follow,
+            CameraMode.HEADING to R.string.camera_heading,
+            CameraMode.SHOTS to R.string.camera_shots,
+            CameraMode.WHOLE to R.string.camera_whole,
+        )
+        for ((mode, name) in names) {
+            FilterChip(
+                selected = s.camera == mode,
+                onClick = { actions.update { it.copy(camera = mode) } },
+                label = { Text(stringResource(name)) },
+            )
+        }
+    }
     Text(
         stringResource(
             when (s.camera) {
+                CameraMode.TRACK -> R.string.camera_track_hint
                 CameraMode.FOLLOW -> R.string.camera_follow_hint
+                CameraMode.HEADING -> R.string.camera_heading_hint
                 CameraMode.SHOTS -> R.string.camera_shots_hint
                 CameraMode.WHOLE -> R.string.camera_whole_hint
             },
@@ -394,6 +407,29 @@ private fun Camera(s: TraceSettings, actions: ScreenActions) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 6.dp),
     )
+    if (s.camera.travels) {
+        Text(
+            stringResource(R.string.camera_distance),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(top = 14.dp, bottom = 8.dp),
+        )
+        val distances = mapOf(
+            CameraDistance.CLOSE to stringResource(R.string.distance_close),
+            CameraDistance.MEDIUM to stringResource(R.string.distance_medium),
+            CameraDistance.FAR to stringResource(R.string.distance_far),
+        )
+        Choice(CameraDistance.entries, s.cameraDistance, { distances.getValue(it) }, { distance -> actions.update { it.copy(cameraDistance = distance) } })
+    }
+    if (s.camera == CameraMode.TRACK || s.camera == CameraMode.HEADING) {
+        LabeledSlider(
+            label = stringResource(R.string.camera_lag),
+            value = "${(s.cameraLag * 100).roundToInt()}%",
+            position = s.cameraLag,
+            onChange = { value -> actions.update { it.copy(cameraLag = (value * 20).roundToInt() / 20f) } },
+            hint = stringResource(R.string.camera_lag_hint),
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
     if (s.camera != CameraMode.WHOLE) {
         LabeledSlider(
             label = stringResource(R.string.zoom_smoothness),

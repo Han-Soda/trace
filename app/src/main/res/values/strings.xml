@@ -52,10 +52,20 @@
 
     <string name="zoom_smoothness">Zoom smoothness</string>
     <string name="camera">Camera</string>
-    <string name="camera_follow">Follow</string>
+    <string name="camera_track">Lock on</string>
+    <string name="camera_follow">Smooth</string>
+    <string name="camera_heading">Heading up</string>
     <string name="camera_shots">Shots</string>
     <string name="camera_whole">Whole route</string>
-    <string name="camera_follow_hint">Travels with the trace and zooms out for long trips.</string>
+    <string name="camera_track_hint">The dot stays in the middle and the map moves under it.</string>
+    <string name="camera_follow_hint">Glides after the dot, looking ahead and rounding corners.</string>
+    <string name="camera_heading_hint">The map turns so the way ahead points up. Place names are hidden so they don’t turn upside down.</string>
+    <string name="camera_distance">Distance</string>
+    <string name="distance_close">Close</string>
+    <string name="distance_medium">Medium</string>
+    <string name="distance_far">Far</string>
+    <string name="camera_lag">Camera lag</string>
+    <string name="camera_lag_hint">How far the camera trails the dot before catching up, like in games. At 0% the dot stays dead centre.</string>
     <string name="camera_shots_hint">Steady shots that glide on to the next part of the trip.</string>
     <string name="camera_whole_hint">The whole route stays in view.</string>
     <string name="pause_at_stops">Pause at stops</string>

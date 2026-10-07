@@ -1,5 +1,6 @@
 package io.github.hansoda.trace.settings
 
+import io.github.hansoda.trace.motion.CameraDistance
 import io.github.hansoda.trace.motion.CameraMode
 import io.github.hansoda.trace.render.MapStyle
 import io.github.hansoda.trace.route.DaySelection
@@ -72,7 +73,10 @@ object Palette {
 data class TraceSettings(
     /** Chosen days, or null for the latest week. */
     val days: DaySelection? = null,
-    val camera: CameraMode = CameraMode.FOLLOW,
+    val camera: CameraMode = CameraMode.TRACK,
+    val cameraDistance: CameraDistance = CameraDistance.MEDIUM,
+    /** How far a lock-on or heading-up camera trails the dot before catching up, 0–1. */
+    val cameraLag: Float = 0.3f,
     val smoothness: Float = 0.6f,
     /** Off, the dot never stops moving. */
     val pauseAtStops: Boolean = false,

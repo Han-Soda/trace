@@ -6,6 +6,8 @@ import android.graphics.Path
 import android.graphics.Typeface
 import io.github.hansoda.trace.motion.Plan
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -34,14 +36,31 @@ class FrameRenderer {
 
         fillPaint.color = look.map.background
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
-        if (tiles != null) map.draw(canvas, width, height, plan.cameraX[f], plan.cameraY[f], cameraWidth, look.map.tileSet(look.labels), tiles)
+
+        // A turning map is drawn upright around the frame's centre, then turned; the text isn't.
+        val turned = if (plan.turns) canvas.save() else -1
+        if (plan.turns) canvas.rotate(Math.toDegrees(plan.cameraAngle[f]).toFloat(), width / 2f, height / 2f)
+        if (tiles != null) {
+            if (plan.turns) {
+                val side = turningSide(width, height)
+                canvas.save()
+                canvas.translate((width - side) / 2f, (height - side) / 2f)
+                map.draw(canvas, side, side, plan.cameraX[f], plan.cameraY[f], cameraWidth * side / width, tileSet(look, plan), tiles)
+                canvas.restore()
+            } else {
+                map.draw(canvas, width, height, plan.cameraX[f], plan.cameraY[f], cameraWidth, tileSet(look, plan), tiles)
+            }
+        }
+        // How far past the frame's edges a turned map shows.
+        val beyond = if (plan.turns) (turningSide(width, height) - min(width, height)) / 2f else 0f
 
         val shortSide = min(width, height).toFloat()
         val lineWidth = max(1.5f, shortSide * 0.0065f * look.lineWidth)
-        buildTrail(plan, f, left, top, scale, width, height, lineWidth * 3)
+        buildTrail(plan, f, left, top, scale, width, height, lineWidth * 3 + beyond)
         drawTrail(canvas, look, lineWidth)
-        if (look.showPoints) drawPoints(canvas, plan, f, left, top, scale, width, height, look, lineWidth)
+        if (look.showPoints) drawPoints(canvas, plan, f, left, top, scale, width, height, beyond, look, lineWidth)
         drawMarkers(canvas, plan, f, left, top, scale, look, lineWidth)
+        if (plan.turns) canvas.restoreToCount(turned)
         drawOverlay(canvas, width, height, plan, f, look, overlay)
         drawAttribution(canvas, width, height, look)
     }
@@ -76,18 +95,19 @@ class FrameRenderer {
 
     private fun drawPoints(
         canvas: Canvas, plan: Plan, f: Int, left: Double, top: Double, scale: Double,
-        width: Int, height: Int, look: Look, lineWidth: Float,
+        width: Int, height: Int, beyond: Float, look: Look, lineWidth: Float,
     ) {
         val route = plan.route
         val radius = lineWidth * 0.95f
         val spacing = radius * 2.6f
+        val edge = radius + beyond
         var lastX = Float.NaN
         var lastY = Float.NaN
         for (i in 0..plan.headSegment[f]) {
             if (route.breakBefore[i]) lastX = Float.NaN
             val x = ((route.x[i] - left) * scale).toFloat()
             val y = ((route.y[i] - top) * scale).toFloat()
-            if (x < -radius || y < -radius || x > width + radius || y > height + radius) continue
+            if (x < -edge || y < -edge || x > width + edge || y > height + edge) continue
             if (!lastX.isNaN() && abs(x - lastX) + abs(y - lastY) < spacing) continue
             fillPaint.color = look.map.background
             canvas.drawCircle(x, y, radius * 1.45f, fillPaint)
@@ -242,5 +262,11 @@ class FrameRenderer {
 
         fun withAlpha(color: Int, alpha: Float): Int =
             ((((color ushr 24) * alpha).toInt().coerceIn(0, 255)) shl 24) or (color and 0x00FFFFFF)
+
+        /** Side of the square a turning map is drawn over, so it fills the frame at any angle. */
+        fun turningSide(width: Int, height: Int): Int = ceil(hypot(width.toDouble(), height.toDouble())).toInt()
+
+        /** The map tiles for a plan: without place names when the map turns. */
+        fun tileSet(look: Look, plan: Plan): String = look.map.tileSet(look.labels && !plan.turns)
     }
 }

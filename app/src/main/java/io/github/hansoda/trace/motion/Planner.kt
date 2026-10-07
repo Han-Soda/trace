@@ -2,21 +2,32 @@ package io.github.hansoda.trace.motion
 
 import io.github.hansoda.trace.data.Geo
 import io.github.hansoda.trace.route.Route
+import kotlin.math.IEEErem
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.log2
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.round
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlin.math.tanh
 
 /** How the camera films the route. */
 enum class CameraMode(val id: String) {
-    /** Travels with the dot, zooming out for long trips and in for short ones. */
+    /** Keeps the dot in the middle of the frame while the map moves under it. */
+    TRACK("track"),
+
+    /** Glides after the dot, looking a little ahead of it and rounding its corners. */
     FOLLOW("follow"),
+
+    /** Keeps the dot low in the frame and turns the map so the way ahead points up. */
+    HEADING("heading"),
 
     /** Holds a steady shot of each part of the trip and glides between them. */
     SHOTS("shots"),
@@ -25,8 +36,23 @@ enum class CameraMode(val id: String) {
     WHOLE("whole"),
     ;
 
+    /** Travels with the dot, as close as [CameraDistance] says, zooming out for long trips. */
+    val travels: Boolean get() = this == TRACK || this == FOLLOW || this == HEADING
+
     companion object {
-        fun fromId(id: String?): CameraMode = entries.firstOrNull { it.id == id } ?: FOLLOW
+        fun fromId(id: String?): CameraMode = entries.firstOrNull { it.id == id } ?: TRACK
+    }
+}
+
+/** How much of the map a travelling camera shows around the dot. */
+enum class CameraDistance(val id: String, internal val factor: Double) {
+    CLOSE("close", 0.55),
+    MEDIUM("medium", 1.0),
+    FAR("far", 1.8),
+    ;
+
+    companion object {
+        fun fromId(id: String?): CameraDistance = entries.firstOrNull { it.id == id } ?: MEDIUM
     }
 }
 
@@ -40,9 +66,13 @@ data class MotionSettings(
     val smoothness: Double,
     /** Share of the frame height at the top kept clear for the title. */
     val topInset: Double = 0.0,
-    val camera: CameraMode = CameraMode.FOLLOW,
+    val camera: CameraMode = CameraMode.TRACK,
     /** Lets the dot wait a moment at long stops. Off, it never stops moving. */
     val pauseAtStops: Boolean = false,
+    /** How close a travelling camera stays; the others frame whole parts of the trip. */
+    val distance: CameraDistance = CameraDistance.MEDIUM,
+    /** How far a lock-on or heading-up camera trails the dot before catching up, 0–1. */
+    val lag: Double = 0.0,
 )
 
 /** Where the camera looks and where the moving dot is on every frame of a video. */
@@ -55,6 +85,10 @@ class Plan(
     val cameraY: DoubleArray,
     /** Visible width in world units. */
     val cameraWidth: DoubleArray,
+    /** How far the map is turned clockwise around the frame's centre, in radians; 0 is north up. */
+    val cameraAngle: DoubleArray,
+    /** True when the map turns with the route. Place names are left off, so none stands on its head. */
+    val turns: Boolean,
     val headX: DoubleArray,
     val headY: DoubleArray,
     /** The trail runs through route points 0..headSegment, then on to the head. */
@@ -93,8 +127,9 @@ internal class Scene(val start: Int, val end: Int, val framing: Framing, val jum
  * of them has to zoom out by more than the smoothness allows. The dot moves at a steady pace
  * across the screen, so every scene reads at the same speed whatever its scale.
  *
- * - [CameraMode.FOLLOW] travels with the dot, looking a little ahead of it, and zooms to the
- *   scale of the current scene.
+ * - [CameraMode.TRACK] keeps the dot in the middle and zooms to the scale of the current scene.
+ * - [CameraMode.FOLLOW] travels with the dot, looking a little ahead of it, and zooms the same.
+ * - [CameraMode.HEADING] tracks the dot low in the frame and turns the map with its heading.
  * - [CameraMode.SHOTS] holds each scene's shot and eases to the next one as the dot crosses
  *   into it.
  * - [CameraMode.WHOLE] shows everything at once.
@@ -133,6 +168,24 @@ object Planner {
 
     /** Closest the dot may come to the frame's edge, as a share of the frame. */
     private const val EDGE = 0.05
+
+    /** How far below the middle the heading camera keeps the dot, as a share of the frame's height. */
+    private const val DROP = 0.15
+
+    /** Fastest the heading camera turns the map, in radians a second. */
+    private const val MAX_TURN = 100 * PI / 180
+
+    /** Seconds over which the heading camera's turning is smoothed after the speed limit. */
+    private const val TURN_EASING = 0.25
+
+    /** Seconds a lock-on camera takes to catch up with the dot at full lag. */
+    private const val MAX_LAG_SECONDS = 1.2
+
+    /** Furthest a lagging camera lets the dot get from its place, as a share of the frame's short side. */
+    private const val MAX_LAG = 0.25
+
+    /** Seconds over which a lock-on camera without lag rounds the dot's corners. */
+    private const val ROUNDING = 0.1
 
     fun plan(route: Route, settings: MotionSettings): Plan {
         require(route.size >= 2) { "A route needs at least two points" }
@@ -208,11 +261,12 @@ object Planner {
                 film.pace(film.timing, film.cameraWidth.copyOf())
                 film.shots(scenes, segmentScene, smoothness, overview, outro)
             }
-            CameraMode.FOLLOW -> {
+            CameraMode.TRACK, CameraMode.FOLLOW, CameraMode.HEADING -> {
+                val distance = settings.distance.factor
                 val target = DoubleArray(scenes.size) { k ->
                     val scene = scenes[k]
                     val zoom = if (scene.jump) FOLLOW_ZOOM_JUMP else FOLLOW_ZOOM
-                    max(minViewWidth(scene.framing.y, aspect), scene.framing.width * zoom).coerceAtMost(MAX_VIEW_WIDTH)
+                    (max(minViewWidth(scene.framing.y, aspect), scene.framing.width * zoom) * distance).coerceAtMost(MAX_VIEW_WIDTH)
                 }
                 // Every scene lasts long enough for the camera to reach its zoom.
                 val shots = scenes.mapIndexed { k, scene -> Framing(scene.framing.x, scene.framing.y, target[k]) }
@@ -237,7 +291,13 @@ object Planner {
                     }
                 }
                 film.pace(film.timing, widths)
-                film.follow(widths, (0.35 + 0.5 * smoothness) * fps, overview, outro)
+                when (mode) {
+                    CameraMode.FOLLOW -> film.follow(widths, (0.35 + 0.5 * smoothness) * fps, overview, outro)
+                    else -> film.track(
+                        widths, settings.lag.coerceIn(0.0, 1.0) * MAX_LAG_SECONDS, overview, outro,
+                        turn = if (mode == CameraMode.HEADING) (0.6 + 1.2 * smoothness) * fps else 0.0,
+                    )
+                }
             }
         }
         return film.toPlan(scenes.size)
@@ -521,6 +581,8 @@ object Planner {
         val cameraX = DoubleArray(frameCount)
         val cameraY = DoubleArray(frameCount)
         val cameraWidth = DoubleArray(frameCount)
+        val cameraAngle = DoubleArray(frameCount)
+        var turns = false
         val headX = DoubleArray(frameCount)
         val headY = DoubleArray(frameCount)
         val headSegment = IntArray(frameCount)
@@ -657,6 +719,159 @@ object Planner {
 
         // endregion
 
+        // region Track
+
+        /**
+         * Keeps the dot in the middle of the frame. With [lag] seconds the camera trails it like
+         * a game's camera and catches up as it slows; without, the dot's path is rounded only
+         * enough that the map doesn't jerk at every corner. A [turn] above zero also turns the
+         * map so the way ahead points up, averaging the heading over that many frames, and keeps
+         * the dot low in the frame to show more of what's coming.
+         */
+        fun track(widths: DoubleArray, lag: Double, overview: Framing, outro: Double, turn: Double) {
+            val overlap = min(0.8, outro * 0.5)
+            // The dot's path measured in frame widths, so the camera keeps up the same at any zoom.
+            val pathX = DoubleArray(frameCount)
+            val pathY = DoubleArray(frameCount)
+            for (f in 1 until frameCount) {
+                pathX[f] = pathX[f - 1] + (headX[f] - headX[f - 1]) / widths[f - 1]
+                pathY[f] = pathY[f - 1] + (headY[f] - headY[f - 1]) / widths[f - 1]
+            }
+            // How far the dot is ahead of its place in the frame, in frame widths.
+            val aheadX = DoubleArray(frameCount)
+            val aheadY = DoubleArray(frameCount)
+            if (lag > 0) {
+                chase(pathX, pathY, lag, aheadX, aheadY)
+            } else {
+                val roundX = gaussian(pathX, ROUNDING * fps)
+                val roundY = gaussian(pathY, ROUNDING * fps)
+                for (f in 0 until frameCount) {
+                    aheadX[f] = pathX[f] - roundX[f]
+                    aheadY[f] = pathY[f] - roundY[f]
+                }
+            }
+            turns = turn > 0
+            if (turns) {
+                headings(widths, turn)
+                straighten(journey - overlap)
+            }
+            val drop = if (turns) DROP else 0.0
+            for (f in 0 until frameCount) {
+                val width = widths[f]
+                // Up on screen, as a direction on the map, and how far the middle of the frame
+                // sits that way from the dot.
+                val upX = -sin(cameraAngle[f])
+                val upY = -cos(cameraAngle[f])
+                val shift = (inset / 2 + drop) * width / aspect
+                cameraX[f] = headX[f] - aheadX[f] * width + upX * shift
+                cameraY[f] = headY[f] - aheadY[f] * width + upY * shift
+                cameraWidth[f] = width
+            }
+            ending(overview, outro, overlap)
+        }
+
+        /**
+         * Chases the dot's [pathX], [pathY] like a game camera: a critically damped spring that
+         * takes about [lag] seconds to catch up, and that the dot drags along rather than
+         * getting further than [MAX_LAG] of the frame ahead. Fills [aheadX], [aheadY] with how
+         * far the dot is ahead of the camera.
+         */
+        private fun chase(pathX: DoubleArray, pathY: DoubleArray, lag: Double, aheadX: DoubleArray, aheadY: DoubleArray) {
+            // A step of the usual smooth-damp spring: stable at any frame rate, no overshoot.
+            val omega = 2 / lag
+            val x = omega / fps
+            val decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
+            val reach = MAX_LAG * min(1.0, 1 / aspect)
+            // Up to here the dot moves freely; beyond, the limit eases in.
+            val free = 0.6 * reach
+            var cameraAtX = pathX[0]
+            var cameraAtY = pathY[0]
+            var speedX = 0.0
+            var speedY = 0.0
+            for (f in 0 until frameCount) {
+                if (f > 0) {
+                    val changeX = cameraAtX - pathX[f]
+                    val changeY = cameraAtY - pathY[f]
+                    val pullX = (speedX + omega * changeX) / fps
+                    val pullY = (speedY + omega * changeY) / fps
+                    speedX = (speedX - omega * pullX) * decay
+                    speedY = (speedY - omega * pullY) * decay
+                    cameraAtX = pathX[f] + (changeX + pullX) * decay
+                    cameraAtY = pathY[f] + (changeY + pullY) * decay
+                }
+                var dx = pathX[f] - cameraAtX
+                var dy = pathY[f] - cameraAtY
+                val distance = hypot(dx, dy)
+                if (distance > free) {
+                    val eased = free + (reach - free) * tanh((distance - free) / (reach - free))
+                    dx *= eased / distance
+                    dy *= eased / distance
+                    // The dot drags the camera along.
+                    cameraAtX = pathX[f] - dx
+                    cameraAtY = pathY[f] - dy
+                }
+                aheadX[f] = dx
+                aheadY[f] = dy
+            }
+        }
+
+        /**
+         * Turns the map so the dot's heading, averaged over [blur] frames, points up, never
+         * faster than [MAX_TURN].
+         */
+        private fun headings(widths: DoubleArray, blur: Double) {
+            // Movement in frame widths, so the heading follows what the eye sees.
+            val moveX = DoubleArray(frameCount)
+            val moveY = DoubleArray(frameCount)
+            for (f in 0 until frameCount - 1) {
+                moveX[f] = (headX[f + 1] - headX[f]) / widths[f]
+                moveY[f] = (headY[f + 1] - headY[f]) / widths[f]
+            }
+            val aimX = gaussian(moveX, blur)
+            val aimY = gaussian(moveY, blur)
+            val step = MAX_TURN / fps
+            var previous = Double.NaN
+            for (f in 0 until frameCount) {
+                if (aimX[f] == 0.0 && aimY[f] == 0.0) {
+                    // Standing still: keep facing the same way.
+                    cameraAngle[f] = previous
+                    continue
+                }
+                var angle = -PI / 2 - atan2(aimY[f], aimX[f])
+                if (!previous.isNaN()) angle = previous + (angle - previous).IEEErem(2 * PI).coerceIn(-step, step)
+                cameraAngle[f] = angle
+                previous = angle
+            }
+            val first = cameraAngle.indexOfFirst { !it.isNaN() }
+            if (first < 0) {
+                cameraAngle.fill(0.0)
+                return
+            }
+            for (f in 0 until first) cameraAngle[f] = cameraAngle[first]
+            gaussian(cameraAngle, TURN_EASING * fps).copyInto(cameraAngle)
+        }
+
+        /**
+         * Turns the map back to north up, the short way round, by [end] seconds, while the dot
+         * still holds its place in the frame; the ending then pulls straight out.
+         */
+        private fun straighten(end: Double) {
+            val last = frameOf(end)
+            val whole = 2 * PI * round(cameraAngle[last] / (2 * PI))
+            for (f in 0 until frameCount) cameraAngle[f] -= whole
+            // About as quick as the heading may turn, and quicker for small turns.
+            val seconds = min(0.4 + 1.9 * abs(cameraAngle[last]) / MAX_TURN, end)
+            for (f in 0 until frameCount) {
+                val t = f / fps.toDouble()
+                when {
+                    t >= end -> cameraAngle[f] = 0.0
+                    t > end - seconds -> cameraAngle[f] *= 1 - smootherstep((t - end + seconds) / seconds)
+                }
+            }
+        }
+
+        // endregion
+
         // region Shots
 
         /** Holds each scene's shot; eases to the next as the dot crosses over, or while it waits. */
@@ -733,7 +948,7 @@ object Planner {
         }
 
         fun toPlan(scenes: Int) = Plan(
-            route, fps, frameCount, cameraX, cameraY, cameraWidth,
+            route, fps, frameCount, cameraX, cameraY, cameraWidth, cameraAngle, turns,
             headX, headY, headSegment, headMeters, headTime, endFrame, scenes,
         )
 

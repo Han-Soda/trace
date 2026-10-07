@@ -3,10 +3,14 @@ package io.github.hansoda.trace.motion
 import io.github.hansoda.trace.data.Geo
 import io.github.hansoda.trace.data.Timeline
 import io.github.hansoda.trace.route.Route
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.log2
 import kotlin.math.max
+import kotlin.math.sin
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -56,7 +60,18 @@ class PlannerTest {
         inset: Double = 0.1,
         pause: Boolean = false,
         route: Route = trip(),
-    ) = Planner.plan(route, MotionSettings(20.0, 30, aspect, smoothness, inset, camera, pause))
+        distance: CameraDistance = CameraDistance.MEDIUM,
+        lag: Double = 0.0,
+    ) = Planner.plan(route, MotionSettings(20.0, 30, aspect, smoothness, inset, camera, pause, distance, lag))
+
+    /** Where a map point shows on frame [f], as shares of the frame's width and height from its middle. */
+    private fun onScreen(plan: Plan, f: Int, x: Double, y: Double, aspect: Double): Pair<Double, Double> {
+        val width = plan.cameraWidth[f]
+        val angle = plan.cameraAngle[f]
+        val ox = x - plan.cameraX[f]
+        val oy = y - plan.cameraY[f]
+        return (cos(angle) * ox - sin(angle) * oy) / width to (sin(angle) * ox + cos(angle) * oy) / (width / aspect)
+    }
 
     @Test
     fun keepsTheDotInFrame() {
@@ -64,19 +79,111 @@ class PlannerTest {
             for (smoothness in listOf(0.0, 0.3, 0.6, 1.0)) {
                 for (aspect in listOf(9.0 / 16, 1.0, 16.0 / 9)) {
                     for (pause in listOf(false, true)) {
-                        val plan = plan(smoothness, camera, aspect, pause = pause)
-                        for (f in 0 until plan.frameCount) {
-                            val width = plan.cameraWidth[f]
-                            val height = width / aspect
-                            val dx = abs(plan.headX[f] - plan.cameraX[f]) / width
-                            val dy = (plan.headY[f] - plan.cameraY[f]) / height
-                            val where = "$camera smoothness $smoothness aspect $aspect pause $pause frame $f"
-                            assertTrue("$where dx $dx", dx <= 0.5)
-                            assertTrue("$where dy $dy", dy in -0.5 + 0.1..0.5)
+                        for (lag in listOf(0.0, 1.0)) {
+                            val plan = plan(smoothness, camera, aspect, pause = pause, lag = lag)
+                            for (f in 0 until plan.frameCount) {
+                                val (dx, dy) = onScreen(plan, f, plan.headX[f], plan.headY[f], aspect)
+                                val where = "$camera smoothness $smoothness aspect $aspect pause $pause lag $lag frame $f"
+                                assertTrue("$where dx $dx", abs(dx) <= 0.5)
+                                assertTrue("$where dy $dy", dy in -0.5 + 0.1..0.5)
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+
+    @Test
+    fun lockOnKeepsTheDotInTheMiddle() {
+        for (aspect in listOf(9.0 / 16, 16.0 / 9)) {
+            val plan = plan(camera = CameraMode.TRACK, aspect = aspect)
+            assertFalse(plan.turns)
+            // Until the camera starts easing out to the whole route.
+            for (f in 0..(plan.endingFrame - plan.fps)) {
+                val (dx, dy) = onScreen(plan, f, plan.headX[f], plan.headY[f], aspect)
+                // Below the middle by half the title's band, so it's centred in the map under it.
+                assertTrue("frame $f dx $dx", abs(dx) <= 0.05)
+                assertTrue("frame $f dy $dy", abs(dy - 0.05) <= 0.05)
+            }
+        }
+    }
+
+    @Test
+    fun laggingCameraTrailsTheDotAndCatchesUp() {
+        for (camera in listOf(CameraMode.TRACK, CameraMode.HEADING)) {
+            val locked = plan(camera = camera)
+            val lagging = plan(camera = camera, lag = 1.0)
+            val home = if (camera == CameraMode.HEADING) 0.2 else 0.05
+            var lead = 0.0
+            var moving = 0
+            var ahead = 0
+            for (f in 1..(lagging.endingFrame - lagging.fps)) {
+                val (dx, dy) = onScreen(lagging, f, lagging.headX[f], lagging.headY[f], 9.0 / 16)
+                // Never more than a quarter of the frame's short side from where the dot belongs.
+                val away = hypot(dx, (dy - home) * 16 / 9)
+                assertTrue("$camera frame $f away $away", away <= 0.25 + 1e-9)
+                lead += away
+                // The dot runs ahead of the camera, the way it's going.
+                val (x0, y0) = onScreen(lagging, f, lagging.headX[f - 1], lagging.headY[f - 1], 9.0 / 16)
+                val (x1, y1) = onScreen(lagging, f, lagging.headX[f], lagging.headY[f], 9.0 / 16)
+                if (hypot(x1 - x0, (y1 - y0) * 16 / 9) < 1e-3) continue
+                moving++
+                if ((x1 - x0) * dx + (y1 - y0) * (dy - home) * 256 / 81 > 0) ahead++
+            }
+            var lockedLead = 0.0
+            for (f in 1..(locked.endingFrame - locked.fps)) {
+                val (dx, dy) = onScreen(locked, f, locked.headX[f], locked.headY[f], 9.0 / 16)
+                lockedLead += hypot(dx, (dy - home) * 16 / 9)
+            }
+            assertTrue("$camera lead $lead locked $lockedLead", lead > lockedLead * 3)
+            assertTrue("$camera ahead on $ahead of $moving frames", ahead >= moving * 0.8)
+            // It catches up once the dot arrives.
+            val (dx, dy) = onScreen(lagging, lagging.endingFrame, lagging.headX[lagging.endingFrame], lagging.headY[lagging.endingFrame], 9.0 / 16)
+            assertTrue("$camera ends dx $dx dy $dy", abs(dx) < 0.5 && abs(dy) < 0.5)
+        }
+    }
+
+    @Test
+    fun headingUpTurnsTheWayAheadUp() {
+        val plan = plan(camera = CameraMode.HEADING)
+        assertTrue(plan.turns)
+        var turnedFastest = 0.0
+        var ahead = 0
+        var moving = 0
+        for (f in 1..(plan.endingFrame - plan.fps)) {
+            turnedFastest = max(turnedFastest, abs(plan.cameraAngle[f] - plan.cameraAngle[f - 1]) * plan.fps)
+            // The dot sits low in the frame, with the way ahead above it.
+            val (_, dy) = onScreen(plan, f, plan.headX[f], plan.headY[f], 9.0 / 16)
+            assertTrue("frame $f dy $dy", dy in 0.15..0.3)
+            // Which way the dot moves on screen.
+            val (x0, y0) = onScreen(plan, f, plan.headX[f - 1], plan.headY[f - 1], 9.0 / 16)
+            val (x1, y1) = onScreen(plan, f, plan.headX[f], plan.headY[f], 9.0 / 16)
+            if (hypot(x1 - x0, y1 - y0) < 1e-4) continue
+            moving++
+            val offUp = abs(atan2(x1 - x0, -(y1 - y0)))
+            if (offUp < PI / 4) ahead++
+        }
+        assertTrue("turned ${turnedFastest * 180 / PI}° a second", turnedFastest <= 100 * PI / 180 + 1e-9)
+        assertTrue("up on $ahead of $moving frames", ahead >= moving * 0.75)
+        // North is up again by the end.
+        assertEquals(0.0, plan.cameraAngle[plan.frameCount - 1], 0.0)
+        for (camera in CameraMode.entries.filter { it != CameraMode.HEADING }) {
+            val upright = plan(camera = camera)
+            assertFalse(upright.turns)
+            assertTrue(upright.cameraAngle.all { it == 0.0 })
+        }
+    }
+
+    @Test
+    fun distanceSetsHowMuchTheCameraShows() {
+        fun average(plan: Plan) = (0..plan.endingFrame).sumOf { plan.cameraWidth[it] } / (plan.endingFrame + 1)
+        for (camera in CameraMode.entries.filter { it.travels }) {
+            val close = average(plan(camera = camera, distance = CameraDistance.CLOSE))
+            val medium = average(plan(camera = camera, distance = CameraDistance.MEDIUM))
+            val far = average(plan(camera = camera, distance = CameraDistance.FAR))
+            assertTrue("$camera close $close medium $medium", close < medium * 0.8)
+            assertTrue("$camera medium $medium far $far", far > medium * 1.3)
         }
     }
 
@@ -202,8 +309,9 @@ class PlannerTest {
             val height = width / (9.0 / 16)
             assertTrue(bounds.minX >= plan.cameraX[last] - width / 2 && bounds.maxX <= plan.cameraX[last] + width / 2)
             assertTrue(bounds.minY >= plan.cameraY[last] - height / 2 && bounds.maxY <= plan.cameraY[last] + height / 2)
-            // The last frames hold still.
+            // The last frames hold still, north up.
             assertEquals(plan.cameraWidth[last], plan.cameraWidth[last - 10], plan.cameraWidth[last] * 1e-9)
+            assertEquals(0.0, plan.cameraAngle[last - 10], 0.0)
         }
     }
 

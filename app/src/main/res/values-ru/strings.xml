@@ -56,10 +56,20 @@
 
     <string name="zoom_smoothness">Плавность зума</string>
     <string name="camera">Камера</string>
-    <string name="camera_follow">Следовать</string>
+    <string name="camera_track">Слежение</string>
+    <string name="camera_follow">Плавно</string>
+    <string name="camera_heading">По курсу</string>
     <string name="camera_shots">Кадры</string>
     <string name="camera_whole">Весь маршрут</string>
-    <string name="camera_follow_hint">Движется вместе с маршрутом и отдаляется в дальних поездках.</string>
+    <string name="camera_track_hint">Точка всегда в центре, а карта движется под ней.</string>
+    <string name="camera_follow_hint">Плавно идёт за точкой, заглядывает вперёд и срезает углы.</string>
+    <string name="camera_heading_hint">Карта поворачивается так, чтобы путь шёл вверх. Названия мест скрыты, чтобы не переворачивались.</string>
+    <string name="camera_distance">Приближение</string>
+    <string name="distance_close">Близко</string>
+    <string name="distance_medium">Средне</string>
+    <string name="distance_far">Далеко</string>
+    <string name="camera_lag">Задержка камеры</string>
+    <string name="camera_lag_hint">Насколько камера отстаёт от точки и потом догоняет её, как в играх. При 0% точка всегда ровно в центре.</string>
     <string name="camera_shots_hint">Спокойные кадры с плавным переходом к следующей части поездки.</string>
     <string name="camera_whole_hint">Весь маршрут всё время в кадре.</string>
     <string name="pause_at_stops">Пауза на остановках</string>
