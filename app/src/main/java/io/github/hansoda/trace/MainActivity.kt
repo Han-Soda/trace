@@ -84,12 +84,17 @@ class MainActivity : ComponentActivity() {
         val removedPoints by viewModel.removedPoints.collectAsState()
         val photos by viewModel.photosOnDays.collectAsState()
         val mediaAdding by viewModel.mediaAdding.collectAsState()
+        val finding by viewModel.finding.collectAsState()
+        val trimming by viewModel.trimming.collectAsState()
 
         val openFiles = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
             viewModel.import(uris)
         }
         val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED)) { uris ->
             viewModel.addMedia(uris)
+        }
+        val gallery = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            if (hasGallery()) viewModel.findMedia() else viewModel.galleryDenied()
         }
         val pendingImage = remember { booleanArrayOf(false) }
         val storage = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -139,6 +144,16 @@ class MainActivity : ComponentActivity() {
                 },
                 removeMedia = viewModel::removeMedia,
                 dismissMediaNote = viewModel::dismissMediaNote,
+                findMedia = {
+                    viewModel.dismissMediaNote()
+                    // With only some photos shared, asking again lets more be picked.
+                    if (hasWholeGallery()) viewModel.findMedia() else gallery.launch(GALLERY)
+                },
+                addFound = viewModel::addFound,
+                dismissFinding = viewModel::dismissFinding,
+                foundThumbnail = viewModel::foundThumbnail,
+                trimClip = viewModel::trimClip,
+                dismissTrimError = viewModel::dismissTrimError,
             )
         }
 
@@ -160,6 +175,8 @@ class MainActivity : ComponentActivity() {
             language = AppLanguage.current(this),
             photos = photos,
             mediaAdding = mediaAdding,
+            finding = finding,
+            trimming = trimming,
         )
 
         val view = LocalView.current
@@ -216,6 +233,13 @@ class MainActivity : ComponentActivity() {
         ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun granted(permission: String) = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
+    /** Any view of the gallery, if only of the photos picked to share. */
+    private fun hasGallery() = GALLERY.any(::granted)
+
+    private fun hasWholeGallery() = granted(GALLERY.first())
+
     private fun share() {
         val uri = viewModel.exportedUri() ?: return
         val image = (viewModel.export.value as? ExportState.Done)?.image == true
@@ -244,6 +268,15 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         val STORAGE = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+
+        /** What it takes to look through the gallery; the first is the whole of it. */
+        val GALLERY = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
+                Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+            )
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+            else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
         const val TIMELINE_SETTINGS = "com.google.android.gms.location.settings.LOCATION_HISTORY"
         const val GOOGLE_PLAY_SERVICES = "com.google.android.gms"
         const val MAX_PICKED = 50

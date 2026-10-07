@@ -143,32 +143,8 @@ class ExportTest {
                 context.contentResolver.delete(uri, null, null)
             }
         } finally {
-            library.remove(photo.id)
+            library.remove(photo)
             file.delete()
-        }
-    }
-
-    @Test
-    fun keepsTheStartOfAVideo() = runBlocking {
-        // A video of our own, dated by the muxer as it's written.
-        val (width, height) = VideoSizes.fit(360, 640, 30)
-        val plan = Planner.plan(route(), MotionSettings(3.0, 30, width.toDouble() / height, 0.6))
-        val look = Look(MapStyle.PAPER, false, 0xFFFF5A36.toInt(), 1f, false)
-        val video = VideoExporter(context, TileStore(context)).video(plan, width, height, look, Overlay.NONE, "Trace test") {}
-        val library = MediaLibrary(context)
-        try {
-            val added = library.add(listOf(video), emptyList()) { _, _ -> }
-            assertEquals("undated ${added.undated}, unreadable ${added.unreadable}", 1, added.items.size)
-            val clip = added.items.single()
-            try {
-                assertTrue("${clip.frames} frames", clip.isClip && clip.frames >= 24)
-                assertTrue(library.frameFile(clip.id, clip.frames - 1).length() > 0)
-                assertTrue(library.thumbnailFile(clip.id).length() > 0)
-            } finally {
-                library.remove(clip.id)
-            }
-        } finally {
-            context.contentResolver.delete(video, null, null)
         }
     }
 

@@ -1,5 +1,6 @@
 package io.github.hansoda.trace.ui
 
+import android.net.Uri
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
 import io.github.hansoda.trace.route.DayActivity
@@ -33,14 +34,51 @@ sealed interface MediaAdding {
 
 /** A photo or clip on the chosen days, as the screen lists it. */
 @Immutable
-data class PhotoCard(val id: String, val isClip: Boolean, val seconds: Double, val thumbnail: ImageBitmap?)
+data class PhotoCard(
+    val id: String,
+    val isClip: Boolean,
+    val seconds: Double,
+    val thumbnail: ImageBitmap?,
+    /** The video a clip can be trimmed from again, when Trace can still read it. */
+    val source: String? = null,
+    val sourceMs: Long = 0,
+    val startMs: Long = 0,
+    val audio: Boolean = false,
+)
 
 /** The photos and clips on the chosen days, and how many others are kept. */
 @Immutable
 data class PhotosSummary(val cards: List<PhotoCard>, val otherDays: Int) {
+    val hasClips: Boolean get() = cards.any { it.isClip }
+    val hasSound: Boolean get() = cards.any { it.audio }
+
     companion object {
         val EMPTY = PhotosSummary(emptyList(), 0)
     }
+}
+
+/** A photo or video in the gallery, from the chosen days. */
+@Immutable
+data class FoundMedia(val uri: Uri, val time: Long, val video: Boolean, val durationMs: Long, val day: String = "")
+
+/** Looking through the gallery for the chosen days, or what turned up. */
+sealed interface MediaFinding {
+    data object Searching : MediaFinding
+
+    /** Trace wasn't let in to the gallery. */
+    data object Denied : MediaFinding
+
+    /** What was found, oldest first, and an even spread of it to start with. */
+    data class Found(val items: List<FoundMedia>, val suggested: Set<Uri>) : MediaFinding
+}
+
+/** Keeping another part of a clip's video. */
+sealed interface ClipTrim {
+    val id: String
+
+    data class Working(override val id: String, val progress: Float) : ClipTrim
+
+    data class Failed(override val id: String) : ClipTrim
 }
 
 sealed interface KeyTest {
@@ -91,6 +129,8 @@ data class ScreenState(
     val language: AppLanguage,
     val photos: PhotosSummary,
     val mediaAdding: MediaAdding?,
+    val finding: MediaFinding? = null,
+    val trimming: ClipTrim? = null,
 )
 
 /** Everything the screen can ask for. */
@@ -117,4 +157,11 @@ class ScreenActions(
     val addMedia: () -> Unit,
     val removeMedia: (String) -> Unit,
     val dismissMediaNote: () -> Unit,
+    /** Asks for the gallery if need be, then looks through it for the chosen days. */
+    val findMedia: () -> Unit,
+    val addFound: (List<Uri>) -> Unit,
+    val dismissFinding: () -> Unit,
+    val foundThumbnail: suspend (FoundMedia) -> ImageBitmap?,
+    val trimClip: (id: String, startMs: Long, lengthMs: Long) -> Unit,
+    val dismissTrimError: () -> Unit,
 )

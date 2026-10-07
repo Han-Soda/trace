@@ -3,7 +3,10 @@ package io.github.hansoda.trace
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import android.text.format.DateUtils
 import android.text.format.Formatter
+import android.util.LruCache
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,15 +18,19 @@ import io.github.hansoda.trace.data.TimelineInfo
 import io.github.hansoda.trace.data.TimelineRepository
 import io.github.hansoda.trace.export.VideoExporter
 import io.github.hansoda.trace.export.VideoSizes
+import io.github.hansoda.trace.media.MediaFinder
 import io.github.hansoda.trace.media.MediaItem
 import io.github.hansoda.trace.media.MediaLibrary
 import io.github.hansoda.trace.media.PhotoStore
+import io.github.hansoda.trace.media.Places
 import io.github.hansoda.trace.motion.CameraDistance
 import io.github.hansoda.trace.motion.CameraMode
 import io.github.hansoda.trace.motion.Moment
 import io.github.hansoda.trace.motion.MotionSettings
 import io.github.hansoda.trace.motion.Plan
 import io.github.hansoda.trace.motion.Planner
+import io.github.hansoda.trace.motion.Speed
+import io.github.hansoda.trace.render.Caption
 import io.github.hansoda.trace.render.Look
 import io.github.hansoda.trace.render.Overlay
 import io.github.hansoda.trace.render.OverlayLayout
@@ -40,11 +47,14 @@ import io.github.hansoda.trace.settings.SettingsStore
 import io.github.hansoda.trace.settings.TraceSettings
 import io.github.hansoda.trace.settings.VideoFormat
 import io.github.hansoda.trace.tiles.TileStore
+import io.github.hansoda.trace.ui.ClipTrim
 import io.github.hansoda.trace.ui.ExportState
+import io.github.hansoda.trace.ui.FoundMedia
 import io.github.hansoda.trace.ui.Formats
 import io.github.hansoda.trace.ui.ImportState
 import io.github.hansoda.trace.ui.KeyTest
 import io.github.hansoda.trace.ui.MediaAdding
+import io.github.hansoda.trace.ui.MediaFinding
 import io.github.hansoda.trace.ui.PhotoCard
 import io.github.hansoda.trace.ui.PhotosSummary
 import io.github.hansoda.trace.ui.RangePreset
@@ -61,11 +71,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -89,6 +101,8 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
     val tiles = TileStore(application)
     private val library = MediaLibrary(application)
     val photos = PhotoStore(library)
+    private val places = Places(application)
+    private val finder = MediaFinder(application)
     private val exporter = VideoExporter(application, tiles, photos.now)
 
     private val _settings = MutableStateFlow(store.load())
@@ -123,6 +137,13 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
     private val _mediaAdding = MutableStateFlow<MediaAdding?>(null)
     val mediaAdding: StateFlow<MediaAdding?> = _mediaAdding.asStateFlow()
     private var mediaJob: Job? = null
+    private val _finding = MutableStateFlow<MediaFinding?>(null)
+    val finding: StateFlow<MediaFinding?> = _finding.asStateFlow()
+    private val _trimming = MutableStateFlow<ClipTrim?>(null)
+    val trimming: StateFlow<ClipTrim?> = _trimming.asStateFlow()
+
+    /** Photos whose place was looked up this time round, so failures aren't asked about again and again. */
+    private val placesAsked = HashSet<String>()
 
     private var importJob: Job? = null
     private var exportJob: Job? = null
@@ -168,7 +189,7 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
     val look: StateFlow<Look> = _settings.map(::lookFor).distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, lookFor(_settings.value))
 
-    val overlay: StateFlow<Overlay> = combine(_settings, language) { settings, _ -> overlayFor(settings) }
+    val overlay: StateFlow<Overlay> = combine(_settings, language, _media, timeline) { settings, _, media, loaded -> overlayFor(settings, media, loaded) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Overlay.NONE)
 
     /** The photos and clips taken on the chosen days, with their thumbnails. */
@@ -177,7 +198,12 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.IO) {
                 val onDays = media.filter { onDays(it, data) }
                 PhotosSummary(
-                    onDays.map { PhotoCard(it.id, it.isClip, it.seconds, photos.thumbnailNow(it.id)?.asImageBitmap()) },
+                    onDays.map {
+                        PhotoCard(
+                            it.id, it.isClip, it.seconds, photos.thumbnailNow(it.id)?.asImageBitmap(),
+                            it.source.takeIf { _ -> it.canTrim }, it.sourceMs, it.startMs, it.audio,
+                        )
+                    },
                     media.size - onDays.size,
                 )
             }
@@ -219,6 +245,11 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     init {
+        // Names for the places photos were taken, once the history is there to say where.
+        viewModelScope.launch {
+            combine(_media.map { list -> list.filter(::needsPlace).map { it.id } }.distinctUntilChanged(), timeline.map { it != null }, language) { _, _, _ -> }
+                .collectLatest { namePlaces() }
+        }
         tiles.apiKey = _settings.value.cartoKey
         viewModelScope.launch {
             val loaded = repository.load()
@@ -236,6 +267,7 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
     /** Makes text, and map labels, again in the newly chosen language. */
     fun languageChanged() {
         tiles.forgetDrawn()
+        placesAsked.clear()
         language.value++
     }
 
@@ -342,14 +374,106 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeMedia(id: String) {
-        val remaining = _media.value.filterNot { it.id == id }
-        if (remaining.size == _media.value.size) return
+        val item = _media.value.firstOrNull { it.id == id } ?: return
+        val remaining = _media.value - item
         _media.value = remaining
         photos.forget(id)
         viewModelScope.launch(Dispatchers.IO) {
-            library.remove(id)
+            library.remove(item)
             library.save(remaining)
         }
+    }
+
+    /** Keeps another part of a clip's video: [lengthMs] from [startMs]. */
+    fun trimClip(id: String, startMs: Long, lengthMs: Long) {
+        val item = _media.value.firstOrNull { it.id == id } ?: return
+        if (mediaJob?.isActive == true) return
+        mediaJob = viewModelScope.launch {
+            _trimming.value = ClipTrim.Working(id, 0f)
+            try {
+                val trimmed = library.trim(item, startMs, lengthMs) { progress -> _trimming.value = ClipTrim.Working(id, progress) }
+                photos.forget(id)
+                val all = _media.value.map { if (it.id == id) trimmed else it }
+                withContext(Dispatchers.IO) { library.save(all) }
+                _media.value = all
+                _trimming.value = null
+            } catch (cancelled: CancellationException) {
+                _trimming.value = null
+                throw cancelled
+            } catch (_: Exception) {
+                _trimming.value = ClipTrim.Failed(id)
+            }
+        }
+    }
+
+    fun dismissTrimError() {
+        if (_trimming.value is ClipTrim.Failed) _trimming.value = null
+    }
+
+    /** Looks through the gallery for photos and videos taken on the chosen days. */
+    fun findMedia() {
+        val chosen = _settings.value.days ?: return
+        if (_finding.value == MediaFinding.Searching) return
+        viewModelScope.launch {
+            _finding.value = MediaFinding.Searching
+            val spans = (0 until chosen.rangeCount).map { k -> Formats.dayStart(chosen.start(k)) until Formats.dayStart(chosen.end(k) + 1) }
+            val kept = _media.value.mapTo(HashSet()) { it.time }
+            val found = withContext(Dispatchers.IO) { finder.find(spans) }.filter { it.time !in kept }
+            val flags = DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_ALL
+            val items = found.map { FoundMedia(it.uri, it.time, it.video, it.durationMs, DateUtils.formatDateTime(text, it.time, flags)) }
+            _finding.value = MediaFinding.Found(items, suggest(items))
+        }
+    }
+
+    /**
+     * An even spread through the trip of about as many as the video has time for, so the
+     * first choice is a good one.
+     */
+    private fun suggest(items: List<FoundMedia>): Set<Uri> {
+        val s = _settings.value
+        val room = (s.durationSeconds * 0.4 / maxOf(1.5, s.photoSeconds.toDouble())).toInt().coerceIn(3, 24)
+        if (items.size <= room) return items.mapTo(HashSet()) { it.uri }
+        return List(room) { k -> items[(2 * k + 1) * items.size / (2 * room)].uri }.toSet()
+    }
+
+    private val foundThumbnails = LruCache<Uri, ImageBitmap>(FOUND_THUMBNAILS)
+
+    suspend fun foundThumbnail(item: FoundMedia): ImageBitmap? = foundThumbnails.get(item.uri) ?: withContext(Dispatchers.IO) {
+        finder.thumbnail(MediaFinder.Found(item.uri, item.time, item.video, item.durationMs), FOUND_THUMBNAIL)?.asImageBitmap()
+            ?.also { foundThumbnails.put(item.uri, it) }
+    }
+
+    fun addFound(uris: List<Uri>) {
+        _finding.value = null
+        addMedia(uris)
+    }
+
+    fun dismissFinding() {
+        _finding.value = null
+    }
+
+    fun galleryDenied() {
+        _finding.value = MediaFinding.Denied
+    }
+
+    private fun needsPlace(item: MediaItem): Boolean = item.place == null || item.placeLanguage != AppLanguage.current(app).tag
+
+    /** Names the places of photos that have none yet, in Trace's language, all at once at the end. */
+    private suspend fun namePlaces() {
+        val loaded = timeline.value ?: return
+        if (!places.available) return
+        val language = AppLanguage.current(app)
+        val locale = AppLanguage.locale(app)
+        val named = HashMap<String, String>()
+        for (item in _media.value.filter(::needsPlace)) {
+            if (!placesAsked.add(item.id + "/" + item.shownTime + "/" + language.tag)) continue
+            val (latitude, longitude) = Places.locate(loaded, item.shownTime) ?: continue
+            places.name(latitude, longitude, locale)?.let { named[item.id] = it }
+        }
+        if (named.isEmpty()) return
+        _media.update { list -> list.map { item -> named[item.id]?.let { item.copy(place = it, placeLanguage = language.tag) } ?: item } }
+        val all = _media.value
+        withContext(Dispatchers.IO) { library.save(all) }
     }
 
     fun dismissMediaNote() {
@@ -359,7 +483,7 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether [item] was taken during the chosen days, give or take the half hour the planner allows. */
     private fun onDays(item: MediaItem, data: RangeData?): Boolean {
         if (data == null || data.size == 0) return false
-        return item.time in data.times[0] - MOMENT_SLACK_MS..data.times[data.size - 1] + MOMENT_SLACK_MS
+        return item.shownTime in data.times[0] - MOMENT_SLACK_MS..data.times[data.size - 1] + MOMENT_SLACK_MS
     }
 
     // endregion
@@ -483,7 +607,7 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
                 exported = if (image) {
                     exporter.image(plan, width, height, look, overlay, name, onProgress)
                 } else {
-                    exporter.video(plan, width, height, look, overlay, name, onProgress)
+                    exporter.video(plan, width, height, look, overlay, name, if (s.clipSound) photos.sounds else null, onProgress)
                 }
                 _export.value = ExportState.Done(image)
             } catch (cancelled: CancellationException) {
@@ -524,14 +648,24 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
 
     // endregion
 
-    private fun lookFor(s: TraceSettings) = Look(s.style, s.labels, s.routeColor, s.lineWidth.factor, s.showPoints)
+    private fun lookFor(s: TraceSettings) =
+        Look(s.style, s.labels, s.routeColor, s.lineWidth.factor, s.showPoints, s.photoStyle, s.photoCorner)
 
-    private fun overlayFor(s: TraceSettings): Overlay {
+    private fun overlayFor(s: TraceSettings, media: List<MediaItem> = _media.value, loaded: Timeline? = timeline.value): Overlay {
         val chosen = s.days ?: return Overlay.NONE
         val label = Formats.selection(text, chosen)
         val title = if (s.showTitle) s.title.trim().ifEmpty { label } else null
         val units = s.units
-        return Overlay(title, s.showDate, s.showDistance, label, Formats.DateLabel(text, chosen)) { meters -> Formats.distance(meters, units) }
+        return Overlay(
+            title, s.showDate, s.showDistance, label, Formats.DateLabel(text, chosen), { meters -> Formats.distance(meters, units) },
+            if (s.captions) captionsFor(media, loaded) else emptyMap(),
+        )
+    }
+
+    /** Where and when each photo was taken, in the time zone the trip was in. */
+    private fun captionsFor(media: List<MediaItem>, loaded: Timeline?): Map<String, Caption> {
+        val time = Formats.PhotoTime(text)
+        return media.associate { item -> item.id to Caption(item.place, time(item.shownTime, Places.offset(loaded, item.shownTime))) }
     }
 
     /** The settings that change the camera and timing. */
@@ -546,20 +680,26 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
         val title: Boolean,
         val subtitle: Boolean,
         val moments: List<Moment>,
+        val speed: Speed,
+        val intro: Boolean,
     ) {
         constructor(s: TraceSettings, media: List<MediaItem>) : this(
             s.durationSeconds, s.format, s.camera, s.cameraDistance, s.cameraLag, s.smoothness, s.pauseAtStops,
             s.showTitle, s.showDate || s.showDistance,
-            // A clip plays its length, plus time to grow out of its pin and shrink back.
-            media.map { Moment(it.id, it.time, if (it.isClip) it.seconds + 0.8 else s.photoSeconds.toDouble(), it.frames, it.fps) },
+            // A clip plays its length, plus time to come up and to go.
+            media.map { Moment(it.id, it.shownTime, if (it.isClip) it.seconds + 0.8 else s.photoSeconds.toDouble(), it.frames, it.fps) },
+            s.speed, s.intro,
         )
 
-        fun motion(fps: Int, aspect: Double, inset: Double) =
-            MotionSettings(seconds.toDouble(), fps, aspect, smoothness.toDouble(), inset, camera, pause, distance, lag.toDouble(), moments)
+        fun motion(fps: Int, aspect: Double, inset: Double) = MotionSettings(
+            seconds.toDouble(), fps, aspect, smoothness.toDouble(), inset, camera, pause, distance, lag.toDouble(), moments, speed, intro,
+        )
     }
 
     private companion object {
         const val MOMENT_SLACK_MS = 30 * 60_000L
+        const val FOUND_THUMBNAIL = 256
+        const val FOUND_THUMBNAILS = 300
         const val PREVIEW_FPS = 30
         const val MAX_UNDO = 50
     }

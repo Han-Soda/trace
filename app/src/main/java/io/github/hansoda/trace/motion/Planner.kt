@@ -58,6 +58,20 @@ enum class CameraDistance(val id: String, internal val factor: Double) {
     }
 }
 
+/** How the dot's pace follows the trip. */
+enum class Speed(val id: String) {
+    /** The same pace on screen all the way, so a walk reads like a drive. */
+    EVEN("even"),
+
+    /** As quick or slow as the trip was: walks take their time and drives rush by. Flights still take a set time. */
+    REAL("real"),
+    ;
+
+    companion object {
+        fun fromId(id: String?): Speed = entries.firstOrNull { it.id == id } ?: EVEN
+    }
+}
+
 /** A photo or clip shown where it was taken; the dot waits there while it's on screen. */
 data class Moment(
     val id: String,
@@ -72,7 +86,14 @@ data class Moment(
 )
 
 /** A [Moment] on the video: shown from [startFrame] to [endFrame] while the dot waits at route point [point]. */
-class PlannedMoment(val moment: Moment, val point: Int, val startFrame: Int, val endFrame: Int)
+class PlannedMoment(val moment: Moment, val point: Int, val startFrame: Int, val endFrame: Int, fps: Int) {
+    /** Frames the picture takes to come up, and again to go; a clip plays from when it's up. */
+    val openFrames: Float = min(OPEN_SECONDS * fps, max(1, endFrame - startFrame) * 0.3f)
+
+    private companion object {
+        const val OPEN_SECONDS = 0.4f
+    }
+}
 
 /** What shapes the timing and camera of a video. */
 data class MotionSettings(
@@ -93,6 +114,9 @@ data class MotionSettings(
     val lag: Double = 0.0,
     /** Photos and clips to show along the way; those taken outside the route's time are left out. */
     val moments: List<Moment> = emptyList(),
+    val speed: Speed = Speed.EVEN,
+    /** Opens on the whole route and flies in to where the trip starts. */
+    val intro: Boolean = false,
 )
 
 /** Where the camera looks and where the moving dot is on every frame of a video. */
@@ -222,6 +246,16 @@ object Planner {
     /** Seconds over which a lock-on camera without lag rounds the dot's corners. */
     private const val ROUNDING = 0.1
 
+    /**
+     * Slowest a trip goes when its pace is real, in metres a second: anything slower is a stop
+     * the export missed, or a phone standing still, and isn't worth the time.
+     */
+    private const val SLOWEST = 0.7
+
+    /** Seconds the opening holds the whole route before flying in, and most of the journey it may take. */
+    private const val INTRO_HOLD = 0.6
+    private const val MAX_INTRO_SHARE = 0.3
+
     fun plan(route: Route, settings: MotionSettings): Plan {
         require(route.size >= 2) { "A route needs at least two points" }
         val fps = settings.fps
@@ -240,11 +274,19 @@ object Planner {
         val bounds = route.bounds()
         val overview = framer.frame(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY, OVERVIEW_PADDING)
 
-        // The journey, then easing out to the whole route, then holding it.
+        // The journey, then easing out to the whole route, then holding it. With an opening,
+        // the journey starts on the whole route and flies in while the dot waits at the start.
         val hold = (total * 0.08).coerceIn(0.8, 2.0)
         val available = max(0.5, total - hold)
         val outro = if (mode == CameraMode.WHOLE) 0.0 else min(transitionSeconds(scenes.last().framing, overview, smoothness), available * 0.25)
         val journey = available - outro
+        // Flying in from far takes as long as any other move that far.
+        val intro = if (settings.intro && mode != CameraMode.WHOLE) {
+            (INTRO_HOLD + transitionSeconds(overview, scenes.first().framing, smoothness)).coerceAtMost(journey * MAX_INTRO_SHARE)
+        } else {
+            0.0
+        }
+        val travel = journey - intro
 
         val length = DoubleArray(n - 1) { hypot(route.x[it + 1] - route.x[it], route.y[it + 1] - route.y[it]) }
         // Flights and jumps between days take a set time, however far they go, while the
@@ -265,7 +307,7 @@ object Planner {
             // The longest stops first, while they fit in a quarter of the journey.
             val boundary = HashMap<Int, Int>()
             for (k in 0 until scenes.size - 1) boundary[scenes[k].end] = k
-            var budget = journey * 0.25
+            var budget = travel * 0.25
             for (at in (1 until n - 1).filter { route.dwellMs[it] >= STOP_MS }.sortedByDescending { route.dwellMs[it] }) {
                 var wait = min(1.0, 0.35 + 0.2 * log2(1 + route.dwellMs[at] / 3_600_000.0))
                 val k = boundary[at]
@@ -277,16 +319,20 @@ object Planner {
             }
         }
         // Photos and clips wait where they were taken, as many as fit in half the journey.
-        val shown = placeMoments(route, settings.moments, journey * MOMENT_SHARE)
+        val shown = placeMoments(route, settings.moments, travel * MOMENT_SHARE)
         val waits = pause.copyOf()
         for (placed in shown) waits[placed.point] += placed.seconds
         val waitShare = 0.25 + MOMENT_SHARE
+        // Time shared out by the screen distance each segment covers, or by how long it took.
+        val real = if (settings.speed == Speed.REAL) realSeconds(route) else null
+        fun timed(screen: DoubleArray, group: IntArray? = null, minimum: DoubleArray? = null): Pace =
+            pace(route, real ?: screen, glide, waits, travel, group, minimum, waitShare).after(intro)
 
         val film = Film(route, fps, frameCount, aspect, inset, journey)
         when (mode) {
             CameraMode.WHOLE -> {
                 val steady = steadyLengths(route, length, scenes) { overview.width }
-                film.pace(pace(route, DoubleArray(n - 1) { steady[it] / overview.width }, glide, waits, journey, waitShare = waitShare))
+                film.pace(timed(DoubleArray(n - 1) { steady[it] / overview.width }))
                 for (f in 0 until frameCount) film.set(f, overview)
             }
             CameraMode.SHOTS -> {
@@ -297,7 +343,7 @@ object Planner {
                 }
                 val steady = steadyLengths(route, length, scenes) { k -> scenes[k].framing.width }
                 val screen = DoubleArray(n - 1) { steady[it] / scenes[segmentScene[it]].framing.width }
-                film.pace(pace(route, screen, glide, waits, journey, segmentScene, minimum, waitShare))
+                film.pace(timed(screen, segmentScene, minimum))
                 film.shots(scenes, segmentScene, smoothness, overview, outro)
                 // Steady on screen through the camera's moves too, then frame again around that.
                 film.pace(film.timing, film.cameraWidth.copyOf())
@@ -319,7 +365,7 @@ object Planner {
                 val width = DoubleArray(n - 1) { target[segmentScene[it]] }
                 var widths = DoubleArray(0)
                 for (round in 0 until FOLLOW_ROUNDS) {
-                    film.pace(pace(route, DoubleArray(n - 1) { steady[it] / width[it] }, glide, waits, journey, waitShare = waitShare))
+                    film.pace(timed(DoubleArray(n - 1) { steady[it] / width[it] }))
                     widths = film.followWidths(target, segmentScene, zoomBlur)
                     if (round == FOLLOW_ROUNDS - 1) break
                     for (i in 0 until n - 1) {
@@ -337,8 +383,26 @@ object Planner {
                 }
             }
         }
+        film.opening(overview, intro)
         film.showMoments(shown, pause)
         return film.toPlan(scenes.size)
+    }
+
+    /**
+     * Seconds each segment of [route] took to travel, leaving out stops, and no more than
+     * crossing it at [SLOWEST] would.
+     */
+    internal fun realSeconds(route: Route): DoubleArray = DoubleArray(route.size - 1) { i ->
+        val leave = min(route.times[i] + route.dwellMs[i], route.times[i + 1])
+        val took = (route.times[i + 1] - leave) / 1000.0
+        val meters = route.meters[i + 1] - route.meters[i]
+        max(0.0, min(took, meters / SLOWEST))
+    }
+
+    /** These times, later by [intro] seconds that the dot spends waiting at the start. */
+    private fun Pace.after(intro: Double): Pace {
+        if (intro <= 0) return this
+        return Pace(DoubleArray(arrive.size) { if (it == 0) 0.0 else arrive[it] + intro }, DoubleArray(depart.size) { depart[it] + intro })
     }
 
     // region Moments
@@ -1111,6 +1175,23 @@ object Planner {
         // endregion
 
         /**
+         * Opens on [overview] and holds it, then eases into wherever the camera is [intro]
+         * seconds in, turning to its heading on the way.
+         */
+        fun opening(overview: Framing, intro: Double) {
+            if (intro <= 0) return
+            val last = frameOf(intro)
+            val target = framing(last)
+            val angle = cameraAngle[last]
+            val hold = min(INTRO_HOLD, intro * 0.35)
+            for (f in 0 until last) {
+                val progress = ((f / fps.toDouble() - hold) / (intro - hold)).coerceIn(0.0, 1.0)
+                set(f, if (progress <= 0) overview else between(overview, target, progress))
+                if (turns) cameraAngle[f] = angle * smootherstep(progress)
+            }
+        }
+
+        /**
          * Eases from wherever the camera is to [overview], starting [overlap] seconds before
          * the dot arrives, then holds the overview.
          */
@@ -1151,7 +1232,7 @@ object Planner {
                     // Only frames on which the dot is already there and still there.
                     val first = ceil(t * fps - 1e-9).toInt().coerceIn(0, frameCount - 1)
                     val last = floor((t + seconds) * fps + 1e-9).toInt().coerceIn(first, frameCount - 1)
-                    placed += PlannedMoment(shown[m].moment, point, first, last)
+                    placed += PlannedMoment(shown[m].moment, point, first, last, fps)
                     t += seconds
                 }
                 k = next

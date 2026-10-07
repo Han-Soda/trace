@@ -66,6 +66,22 @@ object Formats {
         return number.format(value) + if (units == Units.MILES) " mi" else " km"
     }
 
+    /** "Sat, 7 Jun, 10:12": when a photo was taken, in the time zone the trip was in when known. */
+    class PhotoTime(context: Context) : (Long, Short) -> String {
+        private val format: SimpleDateFormat
+
+        init {
+            val locale = Locale.getDefault()
+            val skeleton = if (DateFormat.is24HourFormat(context)) "EEEdMMMHHmm" else "EEEdMMMhmm"
+            format = SimpleDateFormat(DateFormat.getBestDateTimePattern(locale, skeleton), locale)
+        }
+
+        override fun invoke(time: Long, offsetMinutes: Short): String {
+            format.timeZone = if (offsetMinutes == Timeline.NO_OFFSET) TimeZone.getDefault() else SimpleTimeZone(offsetMinutes * 60_000, "local")
+            return format.format(Date(time))
+        }
+    }
+
     /**
      * Formats the running date on the video. Short ranges show the time of day too; times are
      * shown in the time zone the person was in, when the export says.

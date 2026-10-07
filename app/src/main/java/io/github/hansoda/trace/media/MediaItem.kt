@@ -6,10 +6,13 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
-/** A photo, or the first seconds of a video, kept in Trace's own storage as JPEG frames. */
+/**
+ * A photo, or part of a video, kept in Trace's own storage: JPEG frames, and a clip's sound as
+ * raw audio.
+ */
 data class MediaItem(
     val id: String,
-    /** When it was taken, in UTC milliseconds. */
+    /** When it was taken, in UTC milliseconds; for a video, when it started. */
     val time: Long,
     /** 1 for a photo; a clip's frames. */
     val frames: Int,
@@ -17,22 +20,45 @@ data class MediaItem(
     val fps: Double,
     val width: Int,
     val height: Int,
+    /** The video a clip was taken from, to choose another part of it; null when unknown. */
+    val source: String? = null,
+    /** How long the whole video is, in milliseconds. */
+    val sourceMs: Long = 0,
+    /** Where the kept part starts in the video, in milliseconds. */
+    val startMs: Long = 0,
+    /** True when the kept part has sound. */
+    val audio: Boolean = false,
+    /** Where it was taken, as a place name, and the language of that name. */
+    val place: String? = null,
+    val placeLanguage: String? = null,
 ) {
     val isClip: Boolean get() = frames > 1
 
     /** How long a clip plays. */
     val seconds: Double get() = if (isClip && fps > 0) frames / fps else 0.0
+
+    /** When the part shown was taken. */
+    val shownTime: Long get() = time + startMs
+
+    /** True when another part of the video can be chosen. */
+    val canTrim: Boolean get() = isClip && source != null && sourceMs > 0
 }
 
 /** The list of kept photos and clips, one tab-separated line each. */
 object MediaIndex {
     fun encode(items: List<MediaItem>): String = items.joinToString("\n") { item ->
-        listOf(item.id, item.time, item.frames, item.fps, item.width, item.height).joinToString("\t")
+        listOf(
+            item.id, item.time, item.frames, item.fps, item.width, item.height,
+            item.source.orEmpty(), item.sourceMs, item.startMs, if (item.audio) 1 else 0,
+            item.place.orEmpty().replace(Regex("[\\t\\n\\r]"), " "), item.placeLanguage.orEmpty(),
+        ).joinToString("\t")
     }
 
     fun decode(text: String): List<MediaItem> = text.lineSequence().mapNotNull { line ->
         val parts = line.split('\t')
         if (parts.size < 6) return@mapNotNull null
+        // Lines from before clips kept their source have six fields.
+        fun extra(index: Int): String? = parts.getOrNull(index)?.takeIf { it.isNotEmpty() }
         MediaItem(
             id = parts[0].takeIf { it.isNotBlank() } ?: return@mapNotNull null,
             time = parts[1].toLongOrNull() ?: return@mapNotNull null,
@@ -40,6 +66,12 @@ object MediaIndex {
             fps = parts[3].toDoubleOrNull() ?: 0.0,
             width = parts[4].toIntOrNull() ?: 0,
             height = parts[5].toIntOrNull() ?: 0,
+            source = extra(6),
+            sourceMs = extra(7)?.toLongOrNull() ?: 0,
+            startMs = extra(8)?.toLongOrNull() ?: 0,
+            audio = extra(9) == "1",
+            place = extra(10),
+            placeLanguage = extra(11),
         )
     }.toList()
 }

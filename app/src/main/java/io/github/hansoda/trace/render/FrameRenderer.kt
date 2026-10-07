@@ -69,7 +69,7 @@ class FrameRenderer {
         if (photos != null && plan.moments.isNotEmpty()) {
             val title = OverlayLayout.topInset(width.toDouble() / height, overlay.title != null, overlay.hasSubtitle) * height
             val angle = plan.cameraAngle[f]
-            moments.draw(canvas, width, height, plan, f, photos, title.toFloat()) { x, y, out ->
+            moments.draw(canvas, width, height, plan, f, photos, look, overlay.captions, title.toFloat()) { x, y, out ->
                 // Where the point is on the upright map, turned with the map around the middle.
                 val dx = (x - left) * scale - width / 2.0
                 val dy = (y - top) * scale - height / 2.0

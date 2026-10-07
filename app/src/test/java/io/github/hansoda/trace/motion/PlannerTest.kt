@@ -438,6 +438,76 @@ class PlannerTest {
     }
 
     @Test
+    fun realSpeedTakesTheTimeTheTripTook() {
+        // A 2 km walk that took half an hour, then a 2 km drive that took three minutes.
+        val minute = 60_000L
+        val lats = ArrayList<Double>()
+        val lons = ArrayList<Double>()
+        val times = ArrayList<Long>()
+        for (i in 0..20) {
+            lats += 48.85 + 0.0009 * i
+            lons += 2.35
+            times += i * 90_000L
+        }
+        for (i in 1..20) {
+            lats += 48.868 + 0.0009 * i
+            lons += 2.35
+            times += 30 * minute + i * 9_000L
+        }
+        val route = route(lats, lons, times.toLongArray(), LongArray(lats.size))
+        for (camera in CameraMode.entries) {
+            val even = Planner.plan(route, MotionSettings(20.0, 30, 9.0 / 16, 0.6, 0.1, camera))
+            val real = Planner.plan(route, MotionSettings(20.0, 30, 9.0 / 16, 0.6, 0.1, camera, speed = Speed.REAL))
+            val evenShare = secondsOn(even, 0, 20) / secondsOn(even, 20, 40)
+            val realShare = secondsOn(real, 0, 20) / secondsOn(real, 20, 40)
+            assertTrue("$camera even $evenShare", evenShare in 0.6..1.7)
+            assertTrue("$camera real $realShare", realShare in 6.0..14.0)
+        }
+    }
+
+    @Test
+    fun realSpeedSkipsTimeStandingStill() {
+        // A phone left on a table for hours, its fixes a few metres apart, takes no longer
+        // than walking past.
+        val seconds = Planner.realSeconds(
+            route(
+                listOf(48.85, 48.85002, 48.86), listOf(2.35, 2.35, 2.35),
+                longArrayOf(0, 3 * 3_600_000L, 3 * 3_600_000L + 15 * 60_000L), LongArray(3),
+            ),
+        )
+        assertTrue("${seconds[0]}", seconds[0] < 10)
+        assertEquals(15 * 60.0, seconds[1], 1.0)
+    }
+
+    @Test
+    fun opensOnTheWholeRouteAndFliesIn() {
+        val route = trip()
+        val aspect = 9.0 / 16
+        for (camera in listOf(CameraMode.TRACK, CameraMode.FOLLOW, CameraMode.HEADING, CameraMode.SHOTS)) {
+            val plan = Planner.plan(route, MotionSettings(20.0, 30, aspect, 0.6, 0.1, camera, intro = true))
+            // The first frame shows the whole trip, north up.
+            assertEquals(0.0, plan.cameraAngle[0], 1e-9)
+            for (i in 0 until route.size) {
+                val (dx, dy) = onScreen(plan, 0, route.x[i], route.y[i], aspect)
+                assertTrue("$camera point $i at $dx, $dy", abs(dx) <= 0.5 && abs(dy) <= 0.5)
+            }
+            // The dot waits at the start while the camera flies in, then sets off.
+            val flown = (0 until plan.frameCount).first { plan.headX[it] != route.x[0] || plan.headY[it] != route.y[0] } - 1
+            assertTrue("$camera sets off at $flown", flown >= plan.fps)
+            // By then the camera is in close.
+            assertTrue("$camera ${plan.cameraWidth[0] / plan.cameraWidth[flown]}", plan.cameraWidth[0] > 20 * plan.cameraWidth[flown])
+            // The fly-in never jumps: each frame changes the view by a small step.
+            for (f in 1..flown) {
+                val zoom = abs(log2(plan.cameraWidth[f] / plan.cameraWidth[f - 1]))
+                assertTrue("$camera frame $f zoom $zoom", zoom < 0.5)
+            }
+        }
+        // Without it, the video starts close in.
+        val plain = plan(camera = CameraMode.TRACK)
+        assertTrue(plain.cameraWidth[0] < plain.cameraWidth.max() / 20)
+    }
+
+    @Test
     fun photosWaitWhereTheyWereTaken() {
         val route = trip()
         val inLisbon = route.times[10] + 30_000

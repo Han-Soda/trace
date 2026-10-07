@@ -1,12 +1,11 @@
 package io.github.hansoda.trace.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,7 +41,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.hansoda.trace.R
 import io.github.hansoda.trace.settings.AppLanguage
-import io.github.hansoda.trace.settings.Quality
 import io.github.hansoda.trace.settings.Units
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,23 +59,9 @@ fun SettingsSheet(state: ScreenState, actions: ScreenActions, onDismiss: () -> U
                 .padding(bottom = 24.dp),
         ) {
             Text(stringResource(R.string.settings), style = MaterialTheme.typography.titleLarge)
-            MapKey(state, actions)
 
-            SectionTitle(stringResource(R.string.units))
-            Choice(Units.entries, state.settings.units, { if (it == Units.MILES) "mi" else "km" }, { units -> actions.update { it.copy(units = units) } })
-
-            SectionTitle(stringResource(R.string.video_quality))
-            Choice(Quality.entries, state.settings.quality, { it.id }, { quality -> actions.update { it.copy(quality = quality) } })
-            Spacer(Modifier.height(8.dp))
-            val fpsLabels = listOf(30, 60).associateWith { stringResource(R.string.fps_value, it) }
-            Choice(fpsLabels.keys.toList(), state.settings.fps, { fpsLabels.getValue(it) }, { fps -> actions.update { it.copy(fps = fps) } })
-
-            SectionTitle(stringResource(R.string.storage))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.map_cache, state.cacheSize), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                TextButton(onClick = actions.clearCache) { Text(stringResource(R.string.clear)) }
-            }
             if (state.timelineName != null) {
+                SectionTitle(stringResource(R.string.timeline))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(state.timelineName, style = MaterialTheme.typography.bodyLarge)
@@ -99,6 +84,16 @@ fun SettingsSheet(state: ScreenState, actions: ScreenActions, onDismiss: () -> U
             SectionTitle(stringResource(R.string.language))
             Choice(AppLanguage.entries, state.language, { it.nativeName }, actions.setLanguage)
 
+            SectionTitle(stringResource(R.string.units))
+            Choice(Units.entries, state.settings.units, { if (it == Units.MILES) "mi" else "km" }, { units -> actions.update { it.copy(units = units) } })
+
+            SectionTitle(stringResource(R.string.maps))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.map_cache, state.cacheSize), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                TextButton(onClick = actions.clearCache) { Text(stringResource(R.string.clear)) }
+            }
+            MapKey(state, actions)
+
             SectionTitle(stringResource(R.string.about))
             Text(
                 stringResource(R.string.about_text, state.version),
@@ -109,9 +104,18 @@ fun SettingsSheet(state: ScreenState, actions: ScreenActions, onDismiss: () -> U
     }
 }
 
+/** The CARTO key, folded away until wanted: only three of the six styles need one. */
 @Composable
 private fun MapKey(state: ScreenState, actions: ScreenActions) {
-    SectionTitle(stringResource(R.string.map_key))
+    var open by rememberSaveable { mutableStateOf(state.settings.cartoKey.isNotBlank() || state.settings.style.usesCarto) }
+    Row(
+        Modifier.fillMaxWidth().clickable(onClickLabel = stringResource(R.string.map_key)) { open = !open }.padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(stringResource(R.string.map_key), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Icon(if (open) TraceIcons.Less else TraceIcons.More, contentDescription = null)
+    }
+    if (!open) return
     Text(
         stringResource(R.string.map_key_explained),
         style = MaterialTheme.typography.bodyMedium,

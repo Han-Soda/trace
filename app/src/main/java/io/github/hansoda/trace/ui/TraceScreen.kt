@@ -1,6 +1,6 @@
 package io.github.hansoda.trace.ui
 
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
@@ -38,8 +40,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,24 +59,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import io.github.hansoda.trace.R
 import io.github.hansoda.trace.motion.CameraDistance
 import io.github.hansoda.trace.motion.CameraMode
+import io.github.hansoda.trace.motion.Speed
 import io.github.hansoda.trace.render.MapStyle
 import io.github.hansoda.trace.route.PointBudget
 import io.github.hansoda.trace.settings.LineWidth
 import io.github.hansoda.trace.settings.Palette
+import io.github.hansoda.trace.settings.Quality
 import io.github.hansoda.trace.settings.TraceSettings
 import io.github.hansoda.trace.settings.VideoFormat
 import java.text.NumberFormat
@@ -199,8 +204,19 @@ private fun Welcome(import: ImportState, actions: ScreenActions) {
 
 // region Editor
 
+/** The groups the options are in, one tab each. */
+private enum class OptionTab(val title: Int) {
+    TRIP(R.string.tab_trip),
+    CAMERA(R.string.tab_camera),
+    PHOTOS(R.string.tab_photos),
+    LOOK(R.string.tab_look),
+    VIDEO(R.string.tab_video),
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Editor(state: ScreenState, actions: ScreenActions, preview: @Composable (Modifier, Float) -> Unit, onEditRoute: () -> Unit) {
+    var tab by rememberSaveable { mutableStateOf(OptionTab.TRIP) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val width = maxWidth
         val height = maxHeight
@@ -209,29 +225,60 @@ private fun Editor(state: ScreenState, actions: ScreenActions, preview: @Composa
                 Box(Modifier.weight(1f).fillMaxHeight().padding(20.dp), contentAlignment = Alignment.Center) {
                     PreviewPane(state, preview, maxWidth = width - 440.dp, maxHeight = height - 120.dp)
                 }
-                Column(
-                    Modifier
-                        .width(400.dp)
-                        .fillMaxHeight()
-                        .imePadding()
-                        .verticalScroll(rememberScrollState())
-                        .padding(end = 20.dp, bottom = 24.dp),
-                ) { Controls(state, actions, onEditRoute) }
+                Column(Modifier.width(400.dp).fillMaxHeight().padding(end = 20.dp)) {
+                    OptionTabs(tab) { tab = it }
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .imePadding()
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 24.dp),
+                    ) { Options(tab, state, actions, onEditRoute) }
+                }
             }
         } else {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .imePadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                PreviewPane(state, preview, maxWidth = width - 40.dp, maxHeight = height * 0.56f)
-                Controls(state, actions, onEditRoute)
+            // The preview scrolls away for long lists of options; the tabs stay at the top.
+            LazyColumn(Modifier.fillMaxSize().imePadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+                item { PreviewPane(state, preview, maxWidth = width - 40.dp, maxHeight = height * 0.5f) }
+                stickyHeader { OptionTabs(tab) { tab = it } }
+                item {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) { Options(tab, state, actions, onEditRoute) }
+                }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OptionTabs(selected: OptionTab, onSelect: (OptionTab) -> Unit) {
+    PrimaryTabRow(selectedTabIndex = selected.ordinal, containerColor = MaterialTheme.colorScheme.background) {
+        for (tab in OptionTab.entries) {
+            Tab(
+                selected = tab == selected,
+                onClick = { onSelect(tab) },
+                text = { Text(stringResource(tab.title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun Options(tab: OptionTab, state: ScreenState, actions: ScreenActions, onEditRoute: () -> Unit) {
+    val s = state.settings
+    when (tab) {
+        OptionTab.TRIP -> {
+            state.range?.let { Dates(it, state, actions) }
+            RouteSection(state, actions, onEditRoute)
+        }
+        OptionTab.CAMERA -> Camera(s, actions)
+        OptionTab.PHOTOS -> Photos(state, actions)
+        OptionTab.LOOK -> {
+            Style(s, actions)
+            TextOptions(state, actions)
+        }
+        OptionTab.VIDEO -> VideoOptions(s, actions)
     }
 }
 
@@ -295,20 +342,6 @@ private fun PreviewPane(state: ScreenState, preview: @Composable (Modifier, Floa
                 modifier = Modifier.padding(start = 12.dp, end = 4.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun Controls(state: ScreenState, actions: ScreenActions, onEditRoute: () -> Unit) {
-    val s = state.settings
-    Column(Modifier.fillMaxWidth()) {
-        state.range?.let { Dates(it, state, actions) }
-        Camera(s, actions)
-        RouteSection(state, actions, onEditRoute)
-        Photos(state, actions)
-        Style(s, actions)
-        TextOptions(state, actions)
-        VideoOptions(s, actions)
     }
 }
 
@@ -445,6 +478,18 @@ private fun Camera(s: TraceSettings, actions: ScreenActions) {
         )
     }
     SwitchRow(stringResource(R.string.pause_at_stops), s.pauseAtStops, { on -> actions.update { it.copy(pauseAtStops = on) } })
+    if (s.camera != CameraMode.WHOLE) {
+        SwitchRow(stringResource(R.string.intro), s.intro, { on -> actions.update { it.copy(intro = on) } })
+    }
+    Text(stringResource(R.string.speed), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
+    val speeds = mapOf(Speed.EVEN to stringResource(R.string.speed_even), Speed.REAL to stringResource(R.string.speed_real))
+    Choice(Speed.entries, s.speed, { speeds.getValue(it) }, { speed -> actions.update { it.copy(speed = speed) } })
+    Text(
+        stringResource(if (s.speed == Speed.EVEN) R.string.speed_even_hint else R.string.speed_real_hint),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 6.dp),
+    )
 }
 
 @Composable
@@ -475,104 +520,6 @@ private fun RouteSection(state: ScreenState, actions: ScreenActions, onEditRoute
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
             )
             TextButton(onClick = actions.restorePoints) { Text(stringResource(R.string.restore_all)) }
-        }
-    }
-}
-
-@Composable
-private fun Photos(state: ScreenState, actions: ScreenActions) {
-    val photos = state.photos
-    SectionTitle(stringResource(R.string.photos))
-    Text(
-        stringResource(R.string.photos_hint),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    val adding = state.mediaAdding as? MediaAdding.Working
-    Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        FilledTonalButton(onClick = actions.addMedia, enabled = adding == null) {
-            Icon(TraceIcons.AddPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(stringResource(R.string.add_photos), modifier = Modifier.padding(start = 8.dp))
-        }
-        if (adding != null) {
-            CircularProgressIndicator(Modifier.padding(start = 14.dp).size(18.dp), strokeWidth = 2.dp)
-            Text(
-                stringResource(R.string.adding_photos, minOf(adding.done + 1, adding.total), adding.total),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 10.dp),
-            )
-        }
-    }
-    (state.mediaAdding as? MediaAdding.Finished)?.let { done ->
-        val parts = buildList {
-            add(pluralStringResource(R.plurals.photos_added, done.added, done.added))
-            if (done.otherDays > 0) add(pluralStringResource(R.plurals.photos_other_days, done.otherDays, done.otherDays))
-            if (done.undated > 0) add(pluralStringResource(R.plurals.photos_undated, done.undated, done.undated))
-            if (done.unreadable > 0) add(pluralStringResource(R.plurals.photos_unreadable, done.unreadable, done.unreadable))
-        }
-        Text(
-            parts.joinToString(". "),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp).clickable(onClick = actions.dismissMediaNote),
-        )
-    }
-    if (photos.cards.isNotEmpty()) {
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 12.dp), horizontalArrangement = RowGap) {
-            for (card in photos.cards) PhotoThumbnail(card, onRemove = { actions.removeMedia(card.id) })
-        }
-    }
-    if (photos.otherDays > 0 && state.mediaAdding !is MediaAdding.Finished) {
-        Text(
-            pluralStringResource(R.plurals.photos_other_days, photos.otherDays, photos.otherDays),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-    }
-    if (photos.cards.any { !it.isClip }) {
-        val s = state.settings
-        val number = NumberFormat.getNumberInstance(LocalConfiguration.current.locales[0]).apply { maximumFractionDigits = 1 }
-        LabeledSlider(
-            label = stringResource(R.string.photo_seconds),
-            value = stringResource(R.string.photo_seconds_value, number.format(s.photoSeconds)),
-            position = s.photoSeconds,
-            onChange = { value -> actions.update { it.copy(photoSeconds = (value * 2).roundToInt() / 2f) } },
-            range = 1f..4f,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-    }
-}
-
-@Composable
-private fun PhotoThumbnail(card: PhotoCard, onRemove: () -> Unit) {
-    Box(
-        Modifier
-            .size(76.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        card.thumbnail?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
-        if (card.isClip) {
-            Icon(
-                TraceIcons.Play,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.align(Alignment.BottomStart).padding(5.dp).size(18.dp).clip(CircleShape).background(Color(0x66000000)),
-            )
-        }
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .padding(4.dp)
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(Color(0x99000000))
-                .clickable(onClickLabel = stringResource(R.string.remove), onClick = onRemove),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(TraceIcons.Close, contentDescription = stringResource(R.string.remove), tint = Color.White, modifier = Modifier.size(14.dp))
         }
     }
 }
@@ -679,6 +626,11 @@ private fun VideoOptions(s: TraceSettings, actions: ScreenActions) {
         range = TraceSettings.MIN_SECONDS.toFloat()..TraceSettings.MAX_SECONDS.toFloat(),
         modifier = Modifier.padding(top = 8.dp),
     )
+    Text(stringResource(R.string.video_quality), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
+    Choice(Quality.entries, s.quality, { it.id }, { quality -> actions.update { it.copy(quality = quality) } })
+    Spacer(Modifier.height(8.dp))
+    val fpsLabels = listOf(30, 60).associateWith { stringResource(R.string.fps_value, it) }
+    Choice(fpsLabels.keys.toList(), s.fps, { fpsLabels.getValue(it) }, { fps -> actions.update { it.copy(fps = fps) } })
 }
 
 // endregion

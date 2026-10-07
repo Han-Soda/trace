@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
+import io.github.hansoda.trace.media.AudioMix
+import io.github.hansoda.trace.media.SoundSource
 import io.github.hansoda.trace.motion.Plan
 import io.github.hansoda.trace.render.FrameRenderer
 import io.github.hansoda.trace.render.Look
@@ -29,11 +31,16 @@ class VideoExporter(private val context: Context, private val tiles: TileStore, 
         data class Frames(val done: Int, val total: Int) : Progress
     }
 
+    /** Renders [plan] to an MP4; with [sounds], clips play with their own sound. */
     suspend fun video(
         plan: Plan, width: Int, height: Int, look: Look, overlay: Overlay, name: String,
+        sounds: SoundSource? = null,
         onProgress: (Progress) -> Unit,
     ): Uri = withContext(Dispatchers.Default) {
         downloadTiles(plan, 0 until plan.frameCount, width, height, look, onProgress)
+        // A video whose sound can't be made is still worth having, silent.
+        val audio = sounds?.let { source -> runCatching { AudioMix.mix(plan, source)?.let(AacEncoder::encode) }.getOrNull() }
+        ensureActive()
         val file = File(context.cacheDir, "export.mp4")
         file.delete()
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -41,7 +48,7 @@ class VideoExporter(private val context: Context, private val tiles: TileStore, 
             val canvas = Canvas(bitmap)
             val renderer = FrameRenderer()
             val source = TileSource { tiles.tileNow(it) }
-            AvcEncoder(width, height, plan.fps, VideoSizes.bitRate(width, height, plan.fps), file).use { encoder ->
+            AvcEncoder(width, height, plan.fps, VideoSizes.bitRate(width, height, plan.fps), file, audio).use { encoder ->
                 for (frame in 0 until plan.frameCount) {
                     ensureActive()
                     renderer.draw(canvas, width, height, plan, frame, look, overlay, source, photos)

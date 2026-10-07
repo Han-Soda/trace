@@ -3,7 +3,10 @@ package io.github.hansoda.trace.settings
 import android.content.Context
 import io.github.hansoda.trace.motion.CameraDistance
 import io.github.hansoda.trace.motion.CameraMode
+import io.github.hansoda.trace.motion.Speed
+import io.github.hansoda.trace.render.Corner
 import io.github.hansoda.trace.render.MapStyle
+import io.github.hansoda.trace.render.PhotoStyle
 import io.github.hansoda.trace.route.DaySelection
 import java.util.Locale
 
@@ -22,8 +25,14 @@ class SettingsStore(context: Context) {
             cameraDistance = CameraDistance.fromId(prefs.getString(CAMERA_DISTANCE, null)),
             cameraLag = prefs.getFloat(CAMERA_LAG, defaults.cameraLag).coerceIn(0f, 1f),
             photoSeconds = prefs.getFloat(PHOTO_SECONDS, defaults.photoSeconds).coerceIn(1f, 4f),
+            photoStyle = PhotoStyle.fromId(prefs.getString(PHOTO_STYLE, null)),
+            photoCorner = Corner.fromId(prefs.getString(PHOTO_CORNER, null)),
+            captions = prefs.getBoolean(CAPTIONS, defaults.captions),
+            clipSound = prefs.getBoolean(CLIP_SOUND, defaults.clipSound),
             smoothness = prefs.getFloat(SMOOTHNESS, defaults.smoothness).coerceIn(0f, 1f),
             pauseAtStops = prefs.getBoolean(PAUSE, defaults.pauseAtStops),
+            speed = Speed.fromId(prefs.getString(SPEED, null)),
+            intro = prefs.getBoolean(INTRO, defaults.intro),
             pointsFraction = prefs.getFloat(POINTS, defaults.pointsFraction).coerceIn(0f, 1f),
             style = MapStyle.fromId(prefs.getString(STYLE, null)),
             labels = prefs.getBoolean(LABELS, defaults.labels),
@@ -61,7 +70,13 @@ class SettingsStore(context: Context) {
             putString(CAMERA_DISTANCE, settings.cameraDistance.id)
             putFloat(CAMERA_LAG, settings.cameraLag)
             putFloat(PHOTO_SECONDS, settings.photoSeconds)
+            putString(PHOTO_STYLE, settings.photoStyle.id)
+            putString(PHOTO_CORNER, settings.photoCorner.id)
+            putBoolean(CAPTIONS, settings.captions)
+            putBoolean(CLIP_SOUND, settings.clipSound)
             putBoolean(PAUSE, settings.pauseAtStops)
+            putString(SPEED, settings.speed.id)
+            putBoolean(INTRO, settings.intro)
             putFloat(SMOOTHNESS, settings.smoothness)
             putFloat(POINTS, settings.pointsFraction)
             putString(STYLE, settings.style.id)
@@ -91,7 +106,13 @@ class SettingsStore(context: Context) {
         const val CAMERA_DISTANCE = "camera_distance"
         const val CAMERA_LAG = "camera_lag"
         const val PHOTO_SECONDS = "photo_seconds"
+        const val PHOTO_STYLE = "photo_style"
+        const val PHOTO_CORNER = "photo_corner"
+        const val CAPTIONS = "captions"
+        const val CLIP_SOUND = "clip_sound"
         const val PAUSE = "pause_at_stops"
+        const val SPEED = "speed"
+        const val INTRO = "intro"
         const val SMOOTHNESS = "smoothness"
         const val POINTS = "points"
         const val STYLE = "style"

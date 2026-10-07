@@ -2,7 +2,10 @@ package io.github.hansoda.trace.settings
 
 import io.github.hansoda.trace.motion.CameraDistance
 import io.github.hansoda.trace.motion.CameraMode
+import io.github.hansoda.trace.motion.Speed
+import io.github.hansoda.trace.render.Corner
 import io.github.hansoda.trace.render.MapStyle
+import io.github.hansoda.trace.render.PhotoStyle
 import io.github.hansoda.trace.route.DaySelection
 import io.github.hansoda.trace.route.PointBudget
 
@@ -79,9 +82,18 @@ data class TraceSettings(
     val cameraLag: Float = 0.3f,
     /** Seconds each photo stays on screen; clips play their own length. */
     val photoSeconds: Float = 2f,
+    val photoStyle: PhotoStyle = PhotoStyle.CARD,
+    val photoCorner: Corner = Corner.BOTTOM_RIGHT,
+    /** Where and when each photo was taken, under it. */
+    val captions: Boolean = true,
+    /** Clips play with their own sound. */
+    val clipSound: Boolean = true,
     val smoothness: Float = 0.6f,
     /** Off, the dot never stops moving. */
     val pauseAtStops: Boolean = false,
+    val speed: Speed = Speed.EVEN,
+    /** Opens on the whole route and flies in to the start. */
+    val intro: Boolean = true,
     val pointsFraction: Float = PointBudget.DEFAULT_FRACTION,
     // Paper needs no map key, so the first video looks right straight away.
     val style: MapStyle = MapStyle.PAPER,

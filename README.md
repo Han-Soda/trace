@@ -3,7 +3,8 @@
 Turn your Google Maps Timeline into a short, calm video of where you went.
 
 Trace is a small Android app: open your Timeline export, pick the dates, adjust a few
-things while the preview plays, and export an MP4 to `Movies/Trace`.
+things while the preview plays, and export an MP4 to `Movies/Trace`. The options sit in five
+tabs under the preview: Trip, Camera, Photos, Look and Video.
 
 ## What you can change
 
@@ -19,15 +20,21 @@ things while the preview plays, and export an MP4 to `Movies/Trace`.
   the dot stays dead centre. *Shots* holds a steady view of each part of the trip and glides to
   the next. *Whole route* keeps everything in view. **Zoom smoothness** sets how gently and how
   often the zoom changes, and **Pause at stops** lets the trace wait a moment at long stops; off,
-  it never stops moving.
+  it never stops moving. **Start with the whole route** opens on the overview and flies in to
+  where the trip starts. **Speed** is *Even*, the same pace on screen all the way, or *True to
+  life*: walks take their time and drives rush by, as they did.
 - **Route**: **Travel points** sets how many points of your history draw the route, from a few
   dozen for clean, simple lines up to every point. **Remove GPS errors** opens a map of every
   point: tap one, or two to select the stretch between them, and remove it. Likely errors are
   ringed and one tap away. Removals can be undone and are kept when you import a newer export.
-- **Photos and videos**: add them from the gallery, and each pops up on the route where and when
-  it was taken while the trace waits, then shrinks into a pin that stays on the map. Videos play
-  their first 3 seconds; **Each photo** sets how long a photo stays. Trace places them by the time
-  they were taken, so ones without a date are left out.
+- **Photos and videos**: add them from the gallery, or **Find from these days** and Trace looks
+  through the gallery for the chosen dates and suggests an even spread of what it finds. Each
+  comes up on the route where and when it was taken while the trace waits: as a large **Card**,
+  standing **On the map**, small **In a corner** of the video, or as a **Polaroid** print left
+  lying on the map. **Place and time** writes where and when under each one. A video plays up
+  to 10 seconds, at its own frame rate and with its sound (**Sound from videos** turns that off);
+  tap it to choose which part. **Each photo** sets how long a photo stays. Trace places them by
+  the time they were taken, so ones without a date are left out.
 - **Style**: Paper, Ink and Streets are free maps drawn on the device from OpenFreeMap, with
   streets, water, parks and place names; Light, Dark and Voyager come from CARTO and need a key.
   Map labels on or off.
@@ -76,7 +83,9 @@ taking up to 1.2 seconds to catch up and never letting it get more than a quarte
 ahead. *Smooth* holds a frame until the dot gets within a fifth of its edge, then glides on to
 leave the dot a fifth behind the middle; *Heading up* averages the direction of travel over a
 second or two and turns the map at most 100° a second. Every video ends by easing out to the whole
-route, north up.
+route, north up, and can open the same way in reverse, taking as long to fly in as any other move
+that far. With *True to life* speed, each stretch takes its share of the time the trip spent
+moving, leaving out stops and anything slower than a stroll, such as a phone left on a table.
 
 ## Building
 

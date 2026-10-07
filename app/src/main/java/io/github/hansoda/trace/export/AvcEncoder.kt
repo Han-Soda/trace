@@ -12,13 +12,17 @@ import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 
-/** Encodes ARGB frames into an H.264 MP4 file with the platform encoder. */
+/**
+ * Encodes ARGB frames into an H.264 MP4 file with the platform encoder, alongside an [audio]
+ * track encoded beforehand.
+ */
 class AvcEncoder(
     private val width: Int,
     private val height: Int,
     private val fps: Int,
     bitRate: Int,
     output: File,
+    private val audio: EncodedTrack? = null,
 ) : AutoCloseable {
     private val codec: MediaCodec
     private val muxer: MediaMuxer
@@ -107,8 +111,10 @@ class AvcEncoder(
                 index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                     if (muxing) throw IOException("The encoder changed format mid-stream")
                     track = muxer.addTrack(codec.outputFormat)
+                    val sound = audio?.let { muxer.addTrack(it.format) }
                     muxer.start()
                     muxing = true
+                    if (sound != null) writeAudio(sound)
                 }
                 index >= 0 -> {
                     val buffer = codec.getOutputBuffer(index)
@@ -122,6 +128,15 @@ class AvcEncoder(
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return
                 }
             }
+        }
+    }
+
+    /** The whole sound track at once: the muxer interleaves it with the pictures as they come. */
+    private fun writeAudio(track: Int) {
+        val sample = MediaCodec.BufferInfo()
+        for (encoded in audio?.samples.orEmpty()) {
+            sample.set(0, encoded.data.size, encoded.timeUs, encoded.flags)
+            muxer.writeSampleData(track, ByteBuffer.wrap(encoded.data), sample)
         }
     }
 

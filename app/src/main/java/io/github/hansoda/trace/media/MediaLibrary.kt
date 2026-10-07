@@ -1,6 +1,7 @@
 package io.github.hansoda.trace.media
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -8,19 +9,23 @@ import android.media.ExifInterface
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.webkit.MimeTypeMap
 import java.io.File
+import java.io.IOException
 import java.time.ZoneId
+import kotlin.coroutines.coroutineContext
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.coroutineContext
 
 /**
  * The photos and clips added to Trace. Each is copied in, small, as JPEG frames: it stays
- * whatever happens to the original, and is quick to draw. A clip keeps its first seconds.
+ * whatever happens to the original, and is quick to draw. A clip keeps part of its video, up
+ * to [MAX_CLIP_MS], with its sound; another part can be chosen while the video is still there.
  */
 class MediaLibrary(context: Context) {
     private val context = context.applicationContext
@@ -43,10 +48,16 @@ class MediaLibrary(context: Context) {
 
     fun frameFile(id: String, frame: Int): File = File(File(root, id), "$frame.jpg")
 
-    fun thumbnailFile(id: String): File = File(File(root, id), "thumb.jpg")
+    fun thumbnailFile(id: String): File = File(File(root, id), THUMBNAIL)
 
-    fun remove(id: String) {
-        File(root, id).deleteRecursively()
+    /** A clip's sound, as [Sound] keeps it. */
+    fun soundFile(id: String): File = File(File(root, id), SOUND)
+
+    fun remove(item: MediaItem) {
+        File(root, item.id).deleteRecursively()
+        item.source?.let { source ->
+            runCatching { context.contentResolver.releasePersistableUriPermission(Uri.parse(source), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        }
     }
 
     /**
@@ -54,6 +65,7 @@ class MediaLibrary(context: Context) {
      * skipped, and so are ones with no date, which couldn't be put on the route.
      */
     suspend fun add(uris: List<Uri>, kept: List<MediaItem>, onProgress: (done: Int, total: Int) -> Unit): Added = withContext(Dispatchers.IO) {
+        val job = coroutineContext[Job]
         val known = kept.mapTo(HashSet()) { it.time }
         val added = ArrayList<MediaItem>()
         var undated = 0
@@ -61,18 +73,22 @@ class MediaLibrary(context: Context) {
         uris.forEachIndexed { done, uri ->
             onProgress(done, uris.size)
             coroutineContext.ensureActive()
-            val video = context.contentResolver.getType(uri)?.startsWith("video/") == true
+            val video = typeOf(uri).startsWith("video/")
             val time = takenAt(uri, video)
             when {
                 time == null -> undated++
                 time in known -> Unit
                 else -> {
                     val id = "m" + time.toString(36) + Random.nextInt(1 shl 20).toString(36)
-                    val item = runCatching { if (video) copyClip(uri, id, time) else copyPhoto(uri, id, time) }.getOrNull()
+                    val folder = File(root, id)
+                    val item = runCatching {
+                        if (video) copyClip(uri, id, time, null, null, folder) { job?.isActive != false } else copyPhoto(uri, id, time, folder)
+                    }.getOrNull()
                     if (item == null) {
-                        remove(id)
+                        folder.deleteRecursively()
                         unreadable++
                     } else {
+                        if (item.source != null) keepAccess(uri)
                         added += item
                         known += time
                     }
@@ -81,6 +97,39 @@ class MediaLibrary(context: Context) {
         }
         onProgress(uris.size, uris.size)
         Added(added, undated, unreadable)
+    }
+
+    /**
+     * Keeps [lengthMs] of [item]'s video from [startMs] instead of the part it has now. Throws
+     * when the video is gone or can't be read; the clip then stays as it was.
+     */
+    suspend fun trim(item: MediaItem, startMs: Long, lengthMs: Long, onProgress: (Float) -> Unit): MediaItem = withContext(Dispatchers.IO) {
+        val job = coroutineContext[Job]
+        val source = item.source?.let(Uri::parse) ?: throw IOException("The original video isn't known")
+        val temporary = File(root, item.id + ".part")
+        temporary.deleteRecursively()
+        try {
+            val trimmed = copyClip(source, item.id, item.time, startMs, lengthMs, temporary, onProgress) { job?.isActive != false }
+                ?: throw IOException("Couldn't read the video")
+            coroutineContext.ensureActive()
+            val folder = File(root, item.id)
+            folder.deleteRecursively()
+            if (!temporary.renameTo(folder)) throw IOException("Couldn't keep the new part")
+            // Another part may have been taken somewhere else.
+            trimmed.copy(place = null, placeLanguage = null)
+        } finally {
+            temporary.deleteRecursively()
+        }
+    }
+
+    /** What [uri] holds, from its provider or else from its name. */
+    private fun typeOf(uri: Uri): String = context.contentResolver.getType(uri)
+        ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(MimeTypeMap.getFileExtensionFromUrl(uri.toString()).lowercase())
+        ?: ""
+
+    /** Keeps the right to read a video, to choose another part of it later. */
+    private fun keepAccess(uri: Uri) {
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
     }
 
     // region When
@@ -118,7 +167,7 @@ class MediaLibrary(context: Context) {
 
     // region Copying
 
-    private fun copyPhoto(uri: Uri, id: String, time: Long): MediaItem? {
+    private fun copyPhoto(uri: Uri, id: String, time: Long, folder: File): MediaItem? {
         val resolver = context.contentResolver
         // Only the size: this decode returns no bitmap.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -133,38 +182,63 @@ class MediaLibrary(context: Context) {
             resolver.openInputStream(uri)?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
         }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
         val photo = upright(shrink(decoded, PHOTO_SIDE), orientation)
-        File(root, id).mkdirs()
-        write(photo, frameFile(id, 0), PHOTO_QUALITY)
-        writeThumbnail(photo, id)
+        folder.mkdirs()
+        write(photo, File(folder, "0.jpg"), PHOTO_QUALITY)
+        writeThumbnail(photo, folder)
         return MediaItem(id, time, 1, 0.0, photo.width, photo.height).also { photo.recycle() }
     }
 
-    private fun copyClip(uri: Uri, id: String, time: Long): MediaItem? = withRetriever(uri) { retriever ->
-        val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: return@withRetriever null
-        // Skip the first moment, often a shaky start, then keep a few seconds.
-        val start = min(500L, duration / 10)
-        val length = min(CLIP_MS, duration - start)
-        val count = max(1L, length * CLIP_FPS / 1000).toInt()
-        File(root, id).mkdirs()
+    /**
+     * Copies [lengthMs] of a video from [startMs] into [folder]: by default a few seconds after
+     * the first moment, often a shaky start.
+     */
+    private fun copyClip(
+        uri: Uri, id: String, time: Long, startMs: Long?, lengthMs: Long?, folder: File,
+        onProgress: (Float) -> Unit = {}, isActive: () -> Boolean,
+    ): MediaItem? {
+        val duration = withRetriever(uri) { it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() }
+            ?.takeIf { it > 0 } ?: return null
+        val start = (startMs ?: min(SKIP_MS, duration / 10)).coerceIn(0, max(0, duration - MIN_CLIP_MS))
+        val length = (lengthMs ?: DEFAULT_CLIP_MS).coerceIn(MIN_CLIP_MS, MAX_CLIP_MS).coerceAtMost(duration - start)
+        if (length <= 0) return null
+        folder.mkdirs()
+        val reader = ClipReader(context, CLIP_SIDE, CLIP_QUALITY)
+        val startUs = start * 1000
+        val endUs = (start + length) * 1000
+        val frames = runCatching {
+            reader.frames(uri, startUs, endUs, { File(folder, "$it.jpg") }, { writeThumbnail(it, folder) }, isActive) { onProgress(it * 0.9f) }
+        }.getOrNull() ?: framesOneByOne(uri, start, length, folder) ?: return null
+        val sound = runCatching { reader.sound(uri, startUs, endUs, isActive) }.getOrNull()
+        if (sound != null) Sound.write(File(folder, SOUND), sound)
+        onProgress(1f)
+        return MediaItem(
+            id, time, frames.count, frames.fps, frames.width, frames.height,
+            source = uri.toString(), sourceMs = duration, startMs = start, audio = sound != null,
+        )
+    }
+
+    /** For videos the decoder can't take one picture after another: slower, and fewer pictures. */
+    private fun framesOneByOne(uri: Uri, start: Long, length: Long, folder: File): ClipReader.Frames? = withRetriever(uri) { retriever ->
+        val count = max(1L, length * SLOW_FPS / 1000).toInt()
         var kept = 0
         var width = 0
         var height = 0
         for (k in 0 until count) {
-            val atMicros = (start + k * 1000L / CLIP_FPS) * 1000
+            val atMicros = (start + k * 1000L / SLOW_FPS) * 1000
             val frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 retriever.getScaledFrameAtTime(atMicros, MediaMetadataRetriever.OPTION_CLOSEST, CLIP_SIDE, CLIP_SIDE)
             } else {
                 retriever.getFrameAtTime(atMicros, MediaMetadataRetriever.OPTION_CLOSEST)
             } ?: continue
             val small = shrink(frame, CLIP_SIDE)
-            write(small, frameFile(id, kept), CLIP_QUALITY)
-            if (kept == 0) writeThumbnail(small, id)
+            write(small, File(folder, "$kept.jpg"), CLIP_QUALITY)
+            if (kept == 0) writeThumbnail(small, folder)
             width = small.width
             height = small.height
             small.recycle()
             kept++
         }
-        if (kept == 0) null else MediaItem(id, time, kept, CLIP_FPS.toDouble(), width, height)
+        if (kept == 0) null else ClipReader.Frames(kept, kept * 1000.0 / length, width, height)
     }
 
     private fun <T> withRetriever(uri: Uri, use: (MediaMetadataRetriever) -> T?): T? {
@@ -213,11 +287,11 @@ class MediaLibrary(context: Context) {
         return turned
     }
 
-    private fun writeThumbnail(bitmap: Bitmap, id: String) {
+    private fun writeThumbnail(bitmap: Bitmap, folder: File) {
         val side = min(bitmap.width, bitmap.height)
         val square = Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side)
         val small = if (side > THUMBNAIL_SIDE) Bitmap.createScaledBitmap(square, THUMBNAIL_SIDE, THUMBNAIL_SIDE, true) else square
-        write(small, thumbnailFile(id), THUMBNAIL_QUALITY)
+        write(small, File(folder, THUMBNAIL), THUMBNAIL_QUALITY)
         if (small !== bitmap) small.recycle()
         if (square !== bitmap && square !== small) square.recycle()
     }
@@ -228,19 +302,26 @@ class MediaLibrary(context: Context) {
 
     // endregion
 
-    private companion object {
-        /** Where the photo picker and the gallery keep the moment a picture was taken. */
-        val TAKEN_COLUMNS = arrayOf("date_taken_ms", "datetaken")
-        const val OFFSET_ORIGINAL = "OffsetTimeOriginal"
-        const val OFFSET = "OffsetTime"
+    companion object {
+        /** Longest part of a video a clip keeps. */
+        const val MAX_CLIP_MS = 10_000L
+        const val MIN_CLIP_MS = 1_000L
+        const val DEFAULT_CLIP_MS = 5_000L
 
-        const val PHOTO_SIDE = 1440
-        const val PHOTO_QUALITY = 88
-        const val CLIP_SIDE = 720
-        const val CLIP_QUALITY = 82
-        const val CLIP_FPS = 12
-        const val CLIP_MS = 3_000L
-        const val THUMBNAIL_SIDE = 192
-        const val THUMBNAIL_QUALITY = 85
+        /** Where the photo picker and the gallery keep the moment a picture was taken. */
+        private val TAKEN_COLUMNS = arrayOf("date_taken_ms", "datetaken")
+        private const val OFFSET_ORIGINAL = "OffsetTimeOriginal"
+        private const val OFFSET = "OffsetTime"
+
+        private const val THUMBNAIL = "thumb.jpg"
+        private const val SOUND = "sound.pcm"
+        private const val PHOTO_SIDE = 1440
+        private const val PHOTO_QUALITY = 88
+        private const val CLIP_SIDE = 960
+        private const val CLIP_QUALITY = 80
+        private const val SKIP_MS = 500L
+        private const val SLOW_FPS = 12
+        private const val THUMBNAIL_SIDE = 192
+        private const val THUMBNAIL_QUALITY = 85
     }
 }
