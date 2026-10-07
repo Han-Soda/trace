@@ -120,8 +120,9 @@ class MediaLibrary(context: Context) {
 
     private fun copyPhoto(uri: Uri, id: String, time: Long): MediaItem? {
         val resolver = context.contentResolver
+        // Only the size: this decode returns no bitmap.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+        (resolver.openInputStream(uri) ?: return null).use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sample = 1
         while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= PHOTO_SIDE) sample *= 2
