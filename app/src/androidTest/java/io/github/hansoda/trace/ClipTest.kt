@@ -187,7 +187,10 @@ class ClipTest {
             // Wide enough for any time zone the gallery reads the photo's clock in.
             val hours = 3_600_000L
             val sameDay = finder.find(listOf(taken - 26 * hours..taken + 26 * hours))
-            assertTrue(sameDay.any { ContentUris.parseId(it.uri) == id && !it.video })
+            val stored = context.contentResolver.query(photo, arrayOf("datetaken", "date_modified"), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) "taken ${cursor.getString(0)}, modified ${cursor.getString(1)}" else "not in the gallery"
+            }
+            assertTrue("$stored; found ${sameDay.size}", sameDay.any { ContentUris.parseId(it.uri) == id && !it.video })
             val daysLater = finder.find(listOf(taken + 72 * hours..taken + 96 * hours))
             assertFalse(daysLater.any { ContentUris.parseId(it.uri) == id })
         } finally {
@@ -202,8 +205,10 @@ class ClipTest {
         Canvas(picture).drawColor(Color.rgb(200, 120, 40))
         temporary.outputStream().use { picture.compress(Bitmap.CompressFormat.JPEG, 90, it) }
         ExifInterface(temporary.path).apply {
+            // With its time zone, as phones' cameras write it, so the gallery knows when it was.
             val local = Instant.ofEpochMilli(taken).atZone(ZoneId.systemDefault())
             setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss").format(local))
+            setAttribute("OffsetTimeOriginal", if (local.offset.totalSeconds == 0) "+00:00" else local.offset.id)
             saveAttributes()
         }
         val bytes = temporary.readBytes()
