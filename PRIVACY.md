@@ -44,7 +44,8 @@ Trace isn't meant for children.
 
 ## Changes and contact
 
-Changes to this policy will be posted on this page. Questions:
+Changes to this policy will be posted on this page. Questions: write to the email address on
+Trace's Google Play page, or open an issue at
 [github.com/Han-Soda/google-timeline-visualizer/issues](https://github.com/Han-Soda/google-timeline-visualizer/issues).
 
 ---
@@ -94,5 +95,6 @@ Trace не предназначен для детей.
 
 ## Изменения и связь
 
-Изменения этой политики будут опубликованы на этой странице. Вопросы:
+Изменения этой политики будут опубликованы на этой странице. Вопросы: пишите на почту со
+страницы Trace в Google Play или в
 [github.com/Han-Soda/google-timeline-visualizer/issues](https://github.com/Han-Soda/google-timeline-visualizer/issues).

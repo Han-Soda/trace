@@ -11,6 +11,9 @@
   слияния в `main`:
   `https://github.com/Han-Soda/google-timeline-visualizer/blob/main/trace/PRIVACY.md`
 
+Ещё одно: включите Issues (Settings → General → Features → Issues) — на них ссылается политика
+для вопросов.
+
 ## 1. Ключ загрузки (один раз)
 
 GitHub → Settings → Secrets and variables → Actions → New repository secret. Два секрета из

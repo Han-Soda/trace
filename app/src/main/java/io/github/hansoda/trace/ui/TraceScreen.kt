@@ -255,11 +255,16 @@ private fun Editor(state: ScreenState, actions: ScreenActions, preview: @Composa
 private fun OptionTabs(selected: OptionTab, onSelect: (OptionTab) -> Unit) {
     PrimaryTabRow(selectedTabIndex = selected.ordinal, containerColor = MaterialTheme.colorScheme.background) {
         for (tab in OptionTab.entries) {
-            Tab(
-                selected = tab == selected,
-                onClick = { onSelect(tab) },
-                text = { Text(stringResource(tab.title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            )
+            // Less padding than a standard tab, so five fit across a phone even in Russian.
+            Tab(selected = tab == selected, onClick = { onSelect(tab) }, modifier = Modifier.height(48.dp)) {
+                Text(
+                    stringResource(tab.title),
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
         }
     }
 }

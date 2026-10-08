@@ -76,6 +76,8 @@ class VideoExporter(private val context: Context, private val tiles: TileStore, 
         try {
             FrameRenderer().draw(Canvas(bitmap), width, height, plan, frame, look, overlay, { tiles.tileNow(it) }, photos)
             ensureActive()
+            // The map covers every pixel: saved without an alpha channel, the file is smaller.
+            bitmap.setHasAlpha(false)
             MediaSaver.saveImage(context, name) { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
         } finally {
             bitmap.recycle()

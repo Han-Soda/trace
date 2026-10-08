@@ -1,6 +1,7 @@
 package io.github.hansoda.trace
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.media.ExifInterface
 import android.net.Uri
@@ -160,11 +161,13 @@ class StoreScreenshots {
         device.waitForIdle()
     }
 
+    /** The whole screen, as a PNG without an alpha channel, which Google Play turns away. */
     private fun screenshot(name: String) {
-        val file = File(context.cacheDir, "screenshot.png")
-        check(device.takeScreenshot(file, 1f, 100)) { "Couldn't take $name" }
-        MediaSaver.saveImage(context, name) { out -> file.inputStream().use { it.copyTo(out) } }
-        file.delete()
+        val screen = instrumentation.uiAutomation.takeScreenshot() ?: error("Couldn't take $name")
+        val opaque = screen.copy(Bitmap.Config.ARGB_8888, true).apply { setHasAlpha(false) }
+        MediaSaver.saveImage(context, name) { out -> opaque.compress(Bitmap.CompressFormat.PNG, 100, out) }
+        opaque.recycle()
+        screen.recycle()
     }
 
     /** A full battery, full signal and the same time on every screenshot, and no notifications. */
@@ -175,7 +178,7 @@ class StoreScreenshots {
             "clock -e hhmm 1041",
             "battery -e level 100 -e plugged false",
             "network -e wifi show -e level 4 -e fully true",
-            "network -e mobile show -e datatype none -e level 4 -e fully true",
+            "network -e mobile hide",
             "notifications -e visible false",
         )) {
             shell("am broadcast -a com.android.systemui.demo -e command $command")
