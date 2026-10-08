@@ -86,7 +86,8 @@ class StoreScreenshots {
             )
             SettingsStore(context).save(
                 TraceSettings(
-                    days = DaySelection.range(day, day),
+                    // The ride, from just before it set off to just after it ended.
+                    days = DaySelection.range(day, day).withTimes(8 * 60 + 45, 12 * 60 + 15),
                     style = MapStyle.STREETS,
                     photoStyle = PhotoStyle.POLAROID,
                     title = if (russian) "Чикаго на велосипеде" else "Chicago by bike",
@@ -110,6 +111,14 @@ class StoreScreenshots {
 
             seek(plan, coffeeFrame, seconds)
             screenshot("$tag-2-editor")
+            // The calendar, with the ride's exact times.
+            (device.findObject(By.text(text.getString(R.string.pick_dates))) ?: error("No date picker")).click()
+            check(device.wait(Until.hasObject(By.text(text.getString(R.string.exact_times))), 10_000)) { "The calendar didn't open" }
+            SystemClock.sleep(1_500)
+            screenshot("$tag-8-dates")
+            device.pressBack()
+            device.waitForIdle()
+            SystemClock.sleep(1_000)
             tab(text.getString(R.string.tab_photos))
             seek(plan, catFrame, seconds)
             screenshot("$tag-4-photos")
