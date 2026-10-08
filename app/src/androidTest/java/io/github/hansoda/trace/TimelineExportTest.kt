@@ -37,15 +37,25 @@ class TimelineExportTest {
                 SystemClock.sleep(500)
             }
             assertTrue("No $button button among: ${onScreen()}", device.hasObject(target))
-            (device.findObject(target) ?: error("No $button button")).click()
             // Google's Timeline page where Google Play services has one; Location settings here.
-            val settings = Pattern.compile("com\\.android\\.settings|com\\.google\\.android\\.gms")
-            assertTrue("Settings didn't open: ${onScreen()}", device.wait(Until.hasObject(By.pkg(settings).depth(0)), 15_000))
+            // A tap while the screen still scrolls can miss, and Settings can be slow to start.
+            val settings = By.pkg(Pattern.compile("com\\.android\\.settings|com\\.google\\.android\\.gms")).depth(0)
+            var opened = false
+            for (attempt in 1..2) {
+                device.waitForIdle()
+                val shown = device.findObject(target) ?: break
+                shown.click()
+                opened = device.wait(Until.hasObject(settings), 30_000)
+                if (opened) break
+            }
+            assertTrue("Settings didn't open: ${onScreen()}", opened || device.hasObject(settings))
             device.pressBack()
         }
     }
 
     /** The package in front and the words on screen, to say what was there instead. */
-    private fun onScreen(): String =
-        device.currentPackageName + " " + device.findObjects(By.text(Pattern.compile(".+"))).take(20).map { it.text }
+    private fun onScreen(): String = runCatching {
+        // The screen can change while it's read.
+        device.currentPackageName + " " + device.findObjects(By.text(Pattern.compile(".+"))).take(20).map { runCatching { it.text }.getOrNull() }
+    }.getOrElse { "unreadable: $it" }
 }
