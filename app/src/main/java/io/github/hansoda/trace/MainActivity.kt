@@ -5,10 +5,13 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Xml
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -32,6 +35,7 @@ import io.github.hansoda.trace.ui.ScreenActions
 import io.github.hansoda.trace.ui.ScreenState
 import io.github.hansoda.trace.ui.TraceScreen
 import io.github.hansoda.trace.ui.TraceTheme
+import org.xmlpull.v1.XmlPullParser
 
 class MainActivity : ComponentActivity() {
     private val viewModel: TraceViewModel by viewModels()
@@ -207,26 +211,59 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Opens the phone's Timeline settings, where "Export Timeline data" is. Android has no
-     * public link to that page, so this tries Google's own settings screen, then falls back to
-     * Location settings, one tap away from Timeline.
+     * Opens Location › Timeline in the phone's settings, where Export Timeline data is. Android
+     * has no public link to that page: Google Play services adds it to the Location page, so
+     * it's found the way the Settings app finds it. Failing that, Location settings, one tap
+     * away from it, with a reminder of where to go.
      */
     private fun openTimelineExport() {
-        val candidates = listOf(
-            Intent(TIMELINE_SETTINGS).setPackage(GOOGLE_PLAY_SERVICES),
-            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS),
-            Intent(Settings.ACTION_SETTINGS),
-        )
-        for (intent in candidates) {
-            try {
-                startActivity(intent)
+        timelinePage()?.let { if (tryToStart(it)) return }
+        for (intent in listOf(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS), Intent(Settings.ACTION_SETTINGS))) {
+            if (tryToStart(intent)) {
+                Toast.makeText(this, R.string.export_where, Toast.LENGTH_LONG).show()
                 return
-            } catch (_: ActivityNotFoundException) {
-                // Try the next one.
-            } catch (_: SecurityException) {
-                // Not exported on this phone; try the next one.
             }
         }
+    }
+
+    private fun tryToStart(intent: Intent): Boolean = try {
+        startActivity(intent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    } catch (_: SecurityException) {
+        // Not open to other apps on this phone.
+        false
+    }
+
+    /** The Timeline page that Google Play services adds to Location settings, if it can be found. */
+    private fun timelinePage(): Intent? = runCatching {
+        val injectors = packageManager.queryIntentServices(Intent(SETTING_INJECTOR).setPackage(GOOGLE_PLAY_SERVICES), PackageManager.GET_META_DATA)
+        injectors.firstNotNullOfOrNull { injector ->
+            val service = injector.serviceInfo
+            runCatching { injectedSetting(service) }.getOrNull()?.takeIf { (title, activity) ->
+                TIMELINE_TITLES.any { title.equals(it, ignoreCase = true) } || activity.contains("timeline", ignoreCase = true)
+            }?.let { (_, activity) -> Intent().setClassName(service.packageName, activity) }
+        }
+    }.getOrNull()
+
+    /** The title and page of a setting added to Location settings, as its service describes them. */
+    private fun injectedSetting(service: ServiceInfo): Pair<String, String>? {
+        val resources = packageManager.getResourcesForApplication(service.applicationInfo)
+        service.loadXmlMetaData(packageManager, SETTING_INJECTOR)?.use { parser ->
+            while (parser.next() != XmlPullParser.END_DOCUMENT) {
+                if (parser.eventType != XmlPullParser.START_TAG || parser.name != "injected-location-setting") continue
+                val values = resources.obtainAttributes(Xml.asAttributeSet(parser), INJECTED_ATTRIBUTES)
+                try {
+                    val title = values.getString(0) ?: return null
+                    val activity = values.getString(1) ?: return null
+                    return title to activity
+                } finally {
+                    values.recycle()
+                }
+            }
+        }
+        return null
     }
 
     /** Android 8 and 9 mount shared storage only for apps that may both read and write it. */
@@ -278,8 +315,14 @@ class MainActivity : ComponentActivity() {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
             else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
-        const val TIMELINE_SETTINGS = "com.google.android.gms.location.settings.LOCATION_HISTORY"
         const val GOOGLE_PLAY_SERVICES = "com.google.android.gms"
+        const val SETTING_INJECTOR = "android.location.SettingInjectorService"
+
+        /** In the order obtainAttributes needs: ascending. */
+        val INJECTED_ATTRIBUTES = intArrayOf(android.R.attr.title, android.R.attr.settingsActivity)
+
+        /** What the page is called in English and Russian. */
+        val TIMELINE_TITLES = listOf("Timeline", "Хронология")
         const val MAX_PICKED = 50
         const val PRIVACY_POLICY = "https://github.com/Han-Soda/google-timeline-visualizer/blob/main/trace/PRIVACY.md"
     }

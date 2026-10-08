@@ -50,6 +50,41 @@ class SelectionTest {
         assertEquals(DaySelection.range(20, 26), DaySelection.range(13, 19).shifted(7))
     }
 
+    @Test
+    fun keepsStartAndEndTimes() {
+        val trip = DaySelection.range(20, 22).withTimes(9 * 60 + 30, 18 * 60)!!
+        assertTrue(trip.hasTimes)
+        assertFalse(trip.wholeDays().hasTimes)
+        assertEquals("20-22@570-1080", trip.encode())
+        assertEquals(trip, DaySelection.decode(trip.encode()))
+        assertEquals(DaySelection.range(27, 29).withTimes(570, 1080), trip.shifted(7))
+        // Picking days one by one is about whole days.
+        assertFalse(trip.toggled(25)!!.hasTimes)
+        // Settings saved before times existed still read.
+        assertEquals(DaySelection.range(20, 22), DaySelection.decode("20-22"))
+        assertEquals(DaySelection.range(20, 22), DaySelection.decode("20-22@nonsense"))
+    }
+
+    @Test
+    fun endsAfterItStarts() {
+        assertNull(DaySelection.range(5, 5).withTimes(600, 600))
+        assertNull(DaySelection.range(5, 5).withTimes(600, 540))
+        assertNull(DaySelection.range(5, 5).withTimes(-1, 540))
+        assertNull(DaySelection.range(5, 5).withTimes(0, DaySelection.DAY_MINUTES + 1))
+        // Over several days, the last day may end earlier in the day than the first starts.
+        assertEquals("5-6@600-540", DaySelection.range(5, 6).withTimes(600, 540)!!.encode())
+    }
+
+    @Test
+    fun turnsTimesIntoSpans() {
+        val dayStart = { day: Long -> day * this.day }
+        val timeOn = { day: Long, minute: Int -> day * this.day + minute * this.minute }
+        val whole = DaySelection.of(listOf(1L, 2L, 5L))!!
+        assertEquals(listOf(day until 3 * day, 5 * day until 6 * day), whole.spans(dayStart, timeOn))
+        val timed = DaySelection.range(1, 2).withTimes(9 * 60, 17 * 60)!!
+        assertEquals(listOf(day + 9 * 60 * minute until 2 * day + 17 * 60 * minute), timed.spans(dayStart, timeOn))
+    }
+
     // endregion
 
     // region Removed points

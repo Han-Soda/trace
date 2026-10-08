@@ -61,6 +61,9 @@ import io.github.hansoda.trace.ui.RangePreset
 import io.github.hansoda.trace.ui.RangeSummary
 import java.io.IOException
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -165,12 +168,7 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
             if (loaded == null || chosen == null) {
                 null
             } else {
-                withContext(Dispatchers.Default) {
-                    val spans = (0 until chosen.rangeCount).map { k ->
-                        Formats.dayStart(chosen.start(k)) until Formats.dayStart(chosen.end(k) + 1)
-                    }
-                    RouteBuilder.build(loaded, spans, removed)
-                }
+                withContext(Dispatchers.Default) { RouteBuilder.build(loaded, spansOf(chosen, loaded), removed) }
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -416,7 +414,7 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
         if (_finding.value == MediaFinding.Searching) return
         viewModelScope.launch {
             _finding.value = MediaFinding.Searching
-            val spans = (0 until chosen.rangeCount).map { k -> Formats.dayStart(chosen.start(k)) until Formats.dayStart(chosen.end(k) + 1) }
+            val spans = spansOf(chosen, timeline.value)
             val kept = _media.value.mapTo(HashSet()) { it.time }
             val found = withContext(Dispatchers.IO) { finder.find(spans) }.filter { it.time !in kept }
             val flags = DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_ABBREV_ALL
@@ -504,6 +502,25 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setDays(selection: DaySelection) {
         update { it.copy(days = selection) }
+    }
+
+    /** The chosen days, or times, as stretches of UTC milliseconds. */
+    private fun spansOf(chosen: DaySelection, loaded: Timeline?): List<LongRange> =
+        chosen.spans({ day -> Formats.dayStart(day) }) { day, minute -> timeOn(day, minute, loaded) }
+
+    /**
+     * [minute] past midnight on [day] in the time zone the trip was in then, as the video's clock
+     * shows it, or the phone's when the export doesn't say.
+     */
+    private fun timeOn(day: Long, minute: Int, loaded: Timeline?): Long {
+        val local = LocalDate.ofEpochDay(day).atStartOfDay().plusMinutes(minute.toLong())
+        var time = local.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // Twice over, in case the trip changed time zones around then.
+        repeat(2) {
+            val offset = Places.offset(loaded, time)
+            if (offset != Timeline.NO_OFFSET) time = local.toInstant(ZoneOffset.ofTotalSeconds(offset * 60)).toEpochMilli()
+        }
+        return time
     }
 
     private fun presetDays(preset: RangePreset, bounds: Pair<Long, Long>): DaySelection {
@@ -653,7 +670,8 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun overlayFor(s: TraceSettings, media: List<MediaItem> = _media.value, loaded: Timeline? = timeline.value): Overlay {
         val chosen = s.days ?: return Overlay.NONE
-        val label = Formats.selection(text, chosen)
+        // The video's own clock shows the times; its title and closing dates need only the days.
+        val label = Formats.selection(text, chosen.wholeDays())
         val title = if (s.showTitle) s.title.trim().ifEmpty { label } else null
         val units = s.units
         return Overlay(

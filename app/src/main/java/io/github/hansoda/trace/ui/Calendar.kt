@@ -1,5 +1,6 @@
 package io.github.hansoda.trace.ui
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,11 +22,16 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,6 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import io.github.hansoda.trace.R
 import io.github.hansoda.trace.route.DayActivity
 import io.github.hansoda.trace.route.DaySelection
@@ -69,12 +76,19 @@ fun CalendarSheet(
     var mode by remember { mutableStateOf(if (selection.isRange) PickMode.RANGE else PickMode.DAYS) }
     var rangeStart by remember { mutableStateOf<Long?>(selection.first) }
     var rangeEnd by remember { mutableStateOf<Long?>(selection.last) }
-    var days by remember { mutableStateOf<DaySelection?>(selection) }
+    var days by remember { mutableStateOf<DaySelection?>(selection.wholeDays()) }
+    // A stretch of days can start and end at a time of day, rather than with whole days.
+    var timed by remember { mutableStateOf(selection.hasTimes) }
+    var startMinute by remember { mutableIntStateOf(if (selection.hasTimes) selection.startMinute else 0) }
+    var endMinute by remember { mutableIntStateOf(if (selection.hasTimes) selection.endMinute else DaySelection.DAY_MINUTES - 1) }
 
-    val pending: DaySelection? = when (mode) {
+    val chosenDays: DaySelection? = when (mode) {
         PickMode.RANGE -> rangeStart?.let { start -> DaySelection.range(start, rangeEnd ?: start) }
         PickMode.DAYS -> days
     }
+    val withTimes = mode == PickMode.RANGE && timed
+    val pending: DaySelection? = if (withTimes) chosenDays?.withTimes(startMinute, endMinute) else chosenDays
+    val badTimes = withTimes && chosenDays != null && pending == null
 
     fun tap(day: Long) {
         when (mode) {
@@ -99,7 +113,7 @@ fun CalendarSheet(
                 rangeStart = days?.first
                 rangeEnd = days?.last
             }
-            PickMode.DAYS -> days = pending
+            PickMode.DAYS -> days = chosenDays
         }
         mode = next
     }
@@ -123,17 +137,35 @@ fun CalendarSheet(
             val names = mapOf(PickMode.RANGE to stringResource(R.string.pick_range), PickMode.DAYS to stringResource(R.string.pick_days))
             Choice(PickMode.entries, mode, { names.getValue(it) }, ::switchTo)
             Text(
-                pending?.let { chosen ->
-                    Formats.selection(LocalContext.current, chosen) + "  ·  " + pluralStringResource(R.plurals.days, chosen.dayCount, chosen.dayCount)
-                } ?: stringResource(if (mode == PickMode.RANGE) R.string.pick_range_hint else R.string.pick_days_hint),
+                when {
+                    badTimes -> stringResource(R.string.end_before_start)
+                    pending != null -> Formats.selection(LocalContext.current, pending) + "  ·  " +
+                        pluralStringResource(R.plurals.days, pending.dayCount, pending.dayCount)
+                    else -> stringResource(if (mode == PickMode.RANGE) R.string.pick_range_hint else R.string.pick_days_hint)
+                },
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (badTimes) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
             )
             WeekdayHeader()
             LazyColumn(state = list, modifier = Modifier.weight(1f, fill = false).height(420.dp)) {
                 items(months, key = { it.toString() }) { month ->
-                    Month(month, pending, mode, rangeStart, rangeEnd, activity, ::tap)
+                    Month(month, chosenDays, mode, rangeStart, rangeEnd, activity, ::tap)
+                }
+            }
+            if (mode == PickMode.RANGE) {
+                SwitchRow(stringResource(R.string.exact_times), timed, { timed = it })
+                if (timed) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TimeButton(stringResource(R.string.time_start), startMinute, Modifier.weight(1f)) { startMinute = it }
+                        TimeButton(stringResource(R.string.time_end), endMinute, Modifier.weight(1f)) { endMinute = it }
+                    }
+                    Text(
+                        stringResource(R.string.exact_times_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                 }
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -143,12 +175,40 @@ fun CalendarSheet(
                         rangeEnd = null
                         days = null
                     },
-                    enabled = pending != null,
+                    enabled = chosenDays != null,
                 ) { Text(stringResource(R.string.clear)) }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                 Button(onClick = { pending?.let(onApply) }, enabled = pending != null, modifier = Modifier.padding(start = 8.dp)) {
                     Text(stringResource(R.string.apply))
+                }
+            }
+        }
+    }
+}
+
+/** A time of day, [minute] past midnight, as a button that opens a clock to pick another. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeButton(label: String, minute: Int, modifier: Modifier = Modifier, onPick: (Int) -> Unit) {
+    val context = LocalContext.current
+    var picking by remember { mutableStateOf(false) }
+    OutlinedButton(onClick = { picking = true }, modifier = modifier) {
+        Text("$label  ${Formats.clock(context, minute)}", maxLines = 1)
+    }
+    if (!picking) return
+    val clock = rememberTimePickerState(minute / 60, minute % 60, DateFormat.is24HourFormat(context))
+    Dialog(onDismissRequest = { picking = false }) {
+        Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp))
+                TimePicker(clock)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { picking = false }) { Text(stringResource(R.string.cancel)) }
+                    TextButton(onClick = {
+                        onPick(clock.hour * 60 + clock.minute)
+                        picking = false
+                    }) { Text(stringResource(R.string.ok)) }
                 }
             }
         }

@@ -13,6 +13,7 @@ import io.github.hansoda.trace.settings.Units
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.Date
 import java.util.Locale
 import java.util.SimpleTimeZone
@@ -37,6 +38,7 @@ object Formats {
      * "12 days, 3 May – 9 Jun 2025" for more.
      */
     fun selection(context: Context, days: DaySelection): String {
+        if (days.isRange && days.hasTimes) return timedRange(context, days)
         if (days.isRange) return range(context, days.first, days.last)
         if (days.rangeCount > 3) {
             val count = context.resources.getQuantityString(io.github.hansoda.trace.R.plurals.days, days.dayCount, days.dayCount)
@@ -50,6 +52,28 @@ object Formats {
             DateUtils.formatDateRange(context, dayStart(days.start(k)), dayStart(days.end(k)) + 1, flags)
         }
         return parts.joinToString(", ")
+    }
+
+    /**
+     * "7 Jun 2025, 09:30–18:00", or "2 May 2025, 09:30 – 5 May 2025, 18:00": the times as the
+     * trip's own clock showed them.
+     */
+    private fun timedRange(context: Context, days: DaySelection): String {
+        fun wallClock(day: Long, minute: Int) =
+            LocalDate.ofEpochDay(day).atStartOfDay().plusMinutes(minute.toLong()).toInstant(ZoneOffset.UTC).toEpochMilli()
+        val flags = DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_SHOW_YEAR
+        // The phone's 12- or 24-hour clock comes from the context.
+        return DateUtils.formatDateRange(
+            context, java.util.Formatter(StringBuilder(), Locale.getDefault()),
+            wallClock(days.first, days.startMinute), wallClock(days.last, days.endMinute), flags, "UTC",
+        ).toString()
+    }
+
+    /** "09:30", or "9:30 AM", as the phone tells the time. */
+    fun clock(context: Context, minute: Int): String {
+        val format = DateFormat.getTimeFormat(context)
+        format.timeZone = TimeZone.getTimeZone("UTC")
+        return format.format(Date(minute * 60_000L))
     }
 
     /** "6 May 2025, 14:05", in the time zone the person was in when the export says. */

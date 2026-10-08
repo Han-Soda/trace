@@ -4,8 +4,9 @@
     <string name="open_timeline">Открыть файл хронологии</string>
     <string name="reading_file">Чтение… %1$d%%</string>
     <string name="how_to_export_title">Как получить хронологию</string>
-    <string name="how_to_export_steps">Нажмите кнопку: откроются настройки Хронологии на телефоне. Выберите «Экспорт данных хронологии», а когда спросят, куда сохранить, выберите Trace в списке мест. Trace загрузит файл сам, как только вы вернётесь.</string>
+    <string name="how_to_export_steps">Нажмите кнопку и выберите «Экспорт хронологии». Если откроются настройки геолокации, сначала нажмите «Хронология». Когда спросят, куда сохранить, выберите Trace в списке мест: Trace загрузит файл сам, как только вы вернётесь.</string>
     <string name="open_timeline_settings">Экспорт из Хронологии</string>
+    <string name="export_where">Нажмите «Хронология», затем «Экспорт хронологии». На некоторых телефонах «Хронология» — внутри «Службы геолокации».</string>
     <string name="inbox_summary">Загрузить в Trace</string>
     <string name="how_to_export_other">Trace также читает экспорт с iPhone, Records.json и «Семантическую историю местоположений» из Google Takeout, в том числе в ZIP-архивах.</string>
     <string name="import_failed">Не удалось открыть файл</string>
@@ -29,6 +30,11 @@
     <string name="pick_days">Дни</string>
     <string name="pick_range_hint">Нажмите на первый и последний день.</string>
     <string name="pick_days_hint">Нажмите на дни, которые нужно показать.</string>
+    <string name="exact_times">Точное время</string>
+    <string name="time_start">Начало</string>
+    <string name="time_end">Конец</string>
+    <string name="exact_times_hint">В первый день — с начала, в последний — до конца, по местному времени поездки.</string>
+    <string name="end_before_start">Конец должен быть позже начала.</string>
     <string name="preset_day">День</string>
     <string name="preset_week">Неделя</string>
     <string name="preset_month">Месяц</string>

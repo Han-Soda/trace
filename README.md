@@ -10,7 +10,9 @@ tabs under the preview: Trip, Camera, Photos, Look and Video.
 
 - **Dates**: day, week, month, year or everything, step back and forward, or pick dates in a
   calendar: one stretch of days, or any days you like. Days with travel are marked. Separate days
-  aren't joined by a line; the video glides from one to the next.
+  aren't joined by a line; the video glides from one to the next. A stretch of days can also start
+  and end at **exact times**, by the trip's local clock, so the video and its distance cover just
+  the trip.
 - **Camera**: *Lock on* (the default) keeps the trace's dot in the middle while the map moves
   under it. *Smooth* holds the map still while the dot crosses the frame, then glides on when the
   dot nears the edge. *Heading up* turns the map so the way ahead always points up, like a car's
@@ -49,9 +51,10 @@ is in English or Russian, whatever the phone's language: **Settings → Language
 
 ## Getting your Timeline
 
-On your phone: **Settings → Location → Location services → Timeline → Export Timeline data**.
-The **Export from Timeline** button on Trace's start screen, and in its settings, takes you
-there, or as close as your phone allows. When the export asks where to save, pick **Trace** from
+On your phone: **Settings → Location → Timeline → Export Timeline data** (on some phones,
+Timeline is under **Location services**). The **Export from Timeline** button on Trace's start
+screen, and in its settings, opens the Timeline page, found the way the Settings app finds it,
+or else Location settings, one tap away. When the export asks where to save, pick **Trace** from
 the list of places: Trace imports the file as soon as you come back to it. You can also save it
 anywhere and open or share it to Trace. Google offers no way for an app to fetch the Timeline by
 itself, so this is as close to one tap as it gets.

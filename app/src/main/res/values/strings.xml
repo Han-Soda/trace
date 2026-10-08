@@ -6,8 +6,9 @@
     <string name="open_timeline">Open Timeline file</string>
     <string name="reading_file">Reading… %1$d%%</string>
     <string name="how_to_export_title">Getting your Timeline</string>
-    <string name="how_to_export_steps">Tap the button to open your phone’s Timeline settings and choose Export Timeline data. When it asks where to save, pick Trace from the list of places: Trace imports it as soon as you come back.</string>
+    <string name="how_to_export_steps">Tap the button and choose Export Timeline data. If your phone opens Location settings instead, tap Timeline first. When it asks where to save, pick Trace from the list of places: Trace imports it as soon as you come back.</string>
     <string name="open_timeline_settings">Export from Timeline</string>
+    <string name="export_where">Tap Timeline, then Export Timeline data. On some phones Timeline is under Location services.</string>
     <string name="inbox_summary">Import into Trace</string>
     <string name="how_to_export_other">Trace also reads the iPhone export, and Records.json and Semantic Location History from Google Takeout, ZIP archives included.</string>
     <string name="import_failed">Couldn’t open the file</string>
@@ -31,6 +32,11 @@
     <string name="pick_days">Days</string>
     <string name="pick_range_hint">Tap the first and last day.</string>
     <string name="pick_days_hint">Tap the days to show.</string>
+    <string name="exact_times">Exact times</string>
+    <string name="time_start">Start</string>
+    <string name="time_end">End</string>
+    <string name="exact_times_hint">On the first day from the start, on the last until the end, by the trip’s local clock.</string>
+    <string name="end_before_start">The end has to be after the start.</string>
     <string name="preset_day">Day</string>
     <string name="preset_week">Week</string>
     <string name="preset_month">Month</string>
