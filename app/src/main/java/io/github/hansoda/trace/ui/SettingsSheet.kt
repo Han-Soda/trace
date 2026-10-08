@@ -88,7 +88,9 @@ fun SettingsSheet(state: ScreenState, actions: ScreenActions, onDismiss: () -> U
             Choice(AppLanguage.entries, state.language, { it.nativeName }, actions.setLanguage)
 
             SectionTitle(stringResource(R.string.units))
-            Choice(Units.entries, state.settings.units, { if (it == Units.MILES) "mi" else "km" }, { units -> actions.update { it.copy(units = units) } })
+            val kilometers = stringResource(R.string.unit_km)
+            val miles = stringResource(R.string.unit_mi)
+            Choice(Units.entries, state.settings.units, { if (it == Units.MILES) miles else kilometers }, { units -> actions.update { it.copy(units = units) } })
 
             SectionTitle(stringResource(R.string.maps))
             Row(verticalAlignment = Alignment.CenterVertically) {

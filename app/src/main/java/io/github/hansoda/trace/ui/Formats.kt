@@ -1,12 +1,15 @@
 package io.github.hansoda.trace.ui
 
 import android.content.Context
+import android.icu.text.MeasureFormat
+import android.icu.text.NumberFormat
+import android.icu.util.Measure
+import android.icu.util.MeasureUnit
 import android.text.format.DateFormat
 import android.text.format.DateUtils
 import io.github.hansoda.trace.data.Timeline
 import io.github.hansoda.trace.route.DaySelection
 import io.github.hansoda.trace.settings.Units
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.ZoneId
@@ -56,6 +59,7 @@ object Formats {
         return format.format(Date(time))
     }
 
+    /** "5.9 km", or "5,9 км" in Russian. */
     fun distance(meters: Double, units: Units, locale: Locale = Locale.getDefault()): String {
         val value = if (units == Units.MILES) meters / 1609.344 else meters / 1000
         val digits = if (value < 10) 1 else 0
@@ -63,7 +67,8 @@ object Formats {
             minimumFractionDigits = digits
             maximumFractionDigits = digits
         }
-        return number.format(value) + if (units == Units.MILES) " mi" else " km"
+        val unit = if (units == Units.MILES) MeasureUnit.MILE else MeasureUnit.KILOMETER
+        return MeasureFormat.getInstance(locale, MeasureFormat.FormatWidth.SHORT, number).format(Measure(value, unit))
     }
 
     /** "Sat, 7 Jun, 10:12": when a photo was taken, in the time zone the trip was in when known. */

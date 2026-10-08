@@ -160,6 +160,8 @@
     <string name="key_test_failed">Не удалось загрузить фрагмент карты.</string>
     <string name="key_test_loaded">Если на фрагменте написано API KEY REQUIRED, ключ недействителен.</string>
     <string name="units">Единицы</string>
+    <string name="unit_km">км</string>
+    <string name="unit_mi">мили</string>
     <string name="video_quality">Качество видео</string>
     <string name="fps_value">%1$d к/с</string>
     <string name="map_cache">Кэш карт · %1$s</string>

@@ -150,6 +150,8 @@
     <string name="key_test_failed">Couldn’t load a map tile.</string>
     <string name="key_test_loaded">If this tile says API KEY REQUIRED, the key isn’t valid.</string>
     <string name="units">Units</string>
+    <string name="unit_km">km</string>
+    <string name="unit_mi">mi</string>
     <string name="video_quality">Video quality</string>
     <string name="fps_value">%1$d fps</string>
     <string name="map_cache">Map cache · %1$s</string>
