@@ -1,6 +1,7 @@
 package io.github.hansoda.trace
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -248,6 +249,7 @@ class MainActivity : ComponentActivity() {
     }.getOrNull()
 
     /** The title and page of a setting added to Location settings, as its service describes them. */
+    @SuppressLint("ResourceType") // Indices into INJECTED_ATTRIBUTES, not a styleable.
     private fun injectedSetting(service: ServiceInfo): Pair<String, String>? {
         val resources = packageManager.getResourcesForApplication(service.applicationInfo)
         service.loadXmlMetaData(packageManager, SETTING_INJECTOR)?.use { parser ->
