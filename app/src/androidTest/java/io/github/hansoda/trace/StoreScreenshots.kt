@@ -179,8 +179,12 @@ class StoreScreenshots {
         screen.recycle()
     }
 
-    /** A full battery, full signal and the same time on every screenshot, and no notifications. */
+    /**
+     * A full battery, full signal and the same time on every screenshot, and no notifications;
+     * and a 24-hour clock, natural in both languages.
+     */
     private fun cleanStatusBar() {
+        shell("settings put system time_12_24 24")
         shell("settings put global sysui_demo_allowed 1")
         for (command in listOf(
             "enter",
