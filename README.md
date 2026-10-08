@@ -111,9 +111,11 @@ development key in `app/debug.keystore` (password `android`), so builds from any
 over each other: fine for trying out, not for Play. Locally, set `TRACE_KEYSTORE`,
 `TRACE_KEYSTORE_PASSWORD`, `TRACE_KEY_ALIAS` and `TRACE_KEY_PASSWORD` to sign with your own key.
 
-Run the workflow by hand (**Actions › Trace › Run workflow**) to also take the store screenshots,
-in English and Russian, into `play-store/screenshots`. The rest of the store listing is in
-[`play-store`](play-store).
+Run the workflow by hand (**Actions › Trace › Run workflow**) to make the bundle for Play. Such a
+run stops if the upload key is missing or doesn't open, rather than sign with the development key,
+and sums up at the top of its page which key signed the bundle, with a link to download it. Tick
+*Also retake the store screenshots* to take them again, in English and Russian, into
+`play-store/screenshots`. The rest of the store listing is in [`play-store`](play-store).
 
 ## Credits
 

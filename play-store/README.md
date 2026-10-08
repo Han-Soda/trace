@@ -17,14 +17,14 @@
 1. **Ключ.** Settings → Secrets and variables → Actions → New repository secret. Добавьте два
    секрета из файла `trace-upload-key.txt`: `TRACE_UPLOAD_KEY` и `TRACE_UPLOAD_PASSWORD`.
    Сам файл `trace-upload.p12` и пароль храните у себя; в репозиторий их не кладите.
-2. **Слить PR в `main`.** Без этого не откроются ссылка на политику и файл для проверяющих.
-3. **Включить Issues.** Settings → General → Features → Issues. На них ссылается политика.
+2. **Включить Issues.** Settings → General → Features → Issues. На них ссылается политика.
 
 ## 2. Собрать файл для Play
 
-Actions → Trace → Run workflow → Run. Через 10–15 минут откройте запуск, внизу в Artifacts
-скачайте `trace-…` — внутри файл `.aab`. Его и загружать в Play. Номер версии растёт сам. Этот же
-запуск переснимает скриншоты.
+Actions → Trace → Run workflow → Run workflow. Через 10–15 минут откройте запуск: вверху будет
+«Signed with the upload key» и ссылка Download `trace-…`, в архиве — файл `.aab`. Его и загружать в
+Play. Номер версии растёт сам. Если секретов нет или ключ вставлен не целиком, сборка остановится с
+красной ошибкой. Скриншоты переснимаются, только если отметить *Also retake the store screenshots*.
 
 ## 3. Аккаунт разработчика
 
@@ -98,11 +98,13 @@ Store settings (Настройки магазина): категория **Trave
 Test and release → Testing → Closed testing → Create track:
 
 1. Testers: список из **12+ адресов Gmail** (друзья, родные). Сохранить.
-2. Create new release → загрузить `.aab` → Release notes из `listing-*.md` → Save → Review →
-   Start rollout.
-3. Разослать тестировщикам ссылку «Join on the web». Каждый должен нажать «Стать
+2. Create new release → загрузить `.aab` → Release notes из `listing-*.md` → Next → Save.
+3. Policy → App content → **Photo and video permissions** — появится после загрузки `.aab`, текст
+   выше.
+4. Publishing overview → **Send changes for review**.
+5. Разослать тестировщикам ссылку «Join on the web». Каждый должен нажать «Стать
    тестировщиком» и установить приложение.
-4. Ждать **14 дней подряд**, пока все 12 остаются в тесте. Если кто-то выйдет раньше, отсчёт
+6. Ждать **14 дней подряд**, пока все 12 остаются в тесте. Если кто-то выйдет раньше, отсчёт
    может начаться заново.
 
 ## 8. Выпуск
