@@ -29,32 +29,40 @@ Play. Номер версии растёт сам. Если секретов н�
 ## 3. Аккаунт разработчика
 
 [play.google.com/console](https://play.google.com/console) → регистрация как частное лицо
-(Personal), взнос 25 $, проверка личности по документу и подтверждение телефоном Android. Google
-может проверять несколько дней.
+(Personal), взнос 25 $. Проверка личности: документ с фото и отдельный документ с адресом (счёт
+или банковская выписка не старше 60 дней; имя и адрес как в профиле). Подтверждение телефоном
+Android: настоящий телефон без root, Android 10 или новее, приложение Play Console, тот же
+аккаунт. Google может проверять несколько дней.
 
 ## 4. Создать приложение
 
 Create app (Создать приложение):
 
 - App name: `Trace: Travel Map Videos`
+- Package name: `io.github.hansoda.trace` — как в приложении, потом не меняется. Если консоль
+  скажет, что пакет уже встречался на устройствах, и попросит подтвердить ключ (Add key), нужен
+  APK, подписанный этим ключом
 - Default language: English (United States) – en-US
 - App or game: App · Free or paid: Free
 - отметить согласия с правилами
 
 ## 5. Policy → App content (Контент приложения)
 
+Проще всего с Dashboard: блок «Set up your app» ведёт к каждому пункту.
+
 | Раздел | Что выбрать |
 | --- | --- |
 | Privacy policy | `https://github.com/Han-Soda/google-timeline-visualizer/blob/main/trace/PRIVACY.md` |
 | App access | All or some functionality is restricted → инструкция ниже |
 | Ads | No, my app does not contain ads |
-| Content rating | почта, категория All Other App Types, на все вопросы No |
+| Content rating | почта, категория «прочие» (All Other App Types или Utility, Productivity, Communication, or Other), на все вопросы No |
 | Target audience | только 18 and over |
 | News app | No |
 | Government apps, Financial features, Health | No / ничего не отмечать |
 | Advertising ID | No |
 | Data safety | ниже |
 | Photo and video permissions | текст ниже |
+| EU trader status | если спросят: не зарабатываешь на приложении — обычно «не трейдер»; трейдеру Google показывает адрес, телефон и почту |
 
 **App access** — Add instructions, имя любое, текст:
 
