@@ -101,24 +101,39 @@ Grow users → Store presence → Main store listing (Основная стра�
 
 Store settings (Настройки магазина): категория **Travel & Local**, ваша почта.
 
-## 7. Закрытый тест
+## 7. Первый выпуск: внутренний тест
+
+Test and release → Testing → Internal testing → Create new release (если кнопка серая, не все
+задачи на главной выполнены). Если покажут экран про Play App Signing — Continue. App bundles:
+загрузить `.aab`. Release name заполнится само, оставить. Release notes из `listing-*.md`. Next →
+Save → опубликовать. Такой тест 12 тестировщиков не засчитывает.
+
+## 8. Закрытый тест
 
 Test and release → Testing → Closed testing → Create track:
 
 1. Testers: список из **12+ адресов Gmail** (друзья, родные). Сохранить.
-2. Create new release → загрузить `.aab` → Release notes из `listing-*.md` → Next → Save.
-3. Policy → App content → **Photo and video permissions** — появится после загрузки `.aab`, текст
-   выше.
+2. Create new release → тот же `.aab` (загрузить заново или Add from library) → Release notes →
+   Next → Save.
+3. Policy → App content → **Photo and video permissions** — появится после первой загрузки
+   `.aab`, текст выше.
 4. Publishing overview → **Send changes for review**.
 5. Разослать тестировщикам ссылку «Join on the web». Каждый должен нажать «Стать
    тестировщиком» и установить приложение.
 6. Ждать **14 дней подряд**, пока все 12 остаются в тесте. Если кто-то выйдет раньше, отсчёт
    может начаться заново.
 
-## 8. Выпуск
+## 9. Выпуск
 
 Dashboard → **Apply for production**: короткие ответы, как прошёл тест (сколько людей, какие
 отзывы, что поменяли). После одобрения: Production → Create new release → тот же или новый `.aab`.
+
+## Когда добавите рекламу
+
+Реклама внутри приложения — отдельный выпуск. До него: App content → Ads → Yes, обновить Data
+safety и Advertising ID, поправить политику конфиденциальности (сейчас в ней написано, что
+рекламы нет) и пересмотреть статус трейдера. Если реклама есть, а в консоли указано «нет», Google
+может приостановить приложение.
 
 ## Если Google что-то отклонит
 
