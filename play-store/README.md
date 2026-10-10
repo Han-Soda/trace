@@ -10,14 +10,16 @@
 | `graphics/feature-graphic-en.png`, `-ru.png` | баннер 1024×500 |
 | `screenshots/en-*.png`, `ru-*.png` | скриншоты 1080×1920 |
 | `sample-timeline.json` | выдуманная поездка для проверяющих Google |
-| [`../PRIVACY.md`](../PRIVACY.md) | политика конфиденциальности |
+| [`../docs/privacy.md`](../docs/privacy.md) | политика конфиденциальности (страница сайта) |
 
 ## 1. Один раз в GitHub
 
 1. **Ключ.** Settings → Secrets and variables → Actions → New repository secret. Добавьте два
    секрета из файла `trace-upload-key.txt`: `TRACE_UPLOAD_KEY` и `TRACE_UPLOAD_PASSWORD`.
    Сам файл `trace-upload.p12` и пароль храните у себя; в репозиторий их не кладите.
-2. **Включить Issues.** Settings → General → Features → Issues. На них ссылается политика.
+2. **Issues.** В новом репозитории включены сами; на них ссылается политика (Settings → General → Features).
+3. **Сайт.** Settings → Pages → Source: Deploy from a branch → ветка `main`, папка `/docs` → Save.
+   Через пару минут открываются https://han-soda.github.io/trace/ (о приложении) и https://han-soda.github.io/trace/privacy/ (политика).
 
 ## 2. Собрать файл для Play
 
@@ -52,7 +54,7 @@ Create app (Создать приложение):
 
 | Раздел | Что выбрать |
 | --- | --- |
-| Privacy policy | `https://github.com/Han-Soda/google-timeline-visualizer/blob/main/trace/PRIVACY.md` |
+| Privacy policy | `https://han-soda.github.io/trace/privacy/` |
 | App access | All or some functionality is restricted → инструкция ниже |
 | Ads | No, my app does not contain ads |
 | Content rating | почта, категория «прочие» (All Other App Types или Utility, Productivity, Communication, or Other), на все вопросы No |
@@ -67,7 +69,7 @@ Create app (Создать приложение):
 **App access** — Add instructions, имя любое, текст:
 
 ```
-No login is needed, but Trace needs a location history file to show anything. On the device, open https://raw.githubusercontent.com/Han-Soda/google-timeline-visualizer/main/trace/play-store/sample-timeline.json and save it. In Trace, tap "Open Timeline file" and choose it. The editor opens with a sample bike ride; "Export video" makes an MP4.
+No login is needed, but Trace needs a location history file to show anything. On the device, open https://raw.githubusercontent.com/Han-Soda/trace/main/play-store/sample-timeline.json and save it. In Trace, tap "Open Timeline file" and choose it. The editor opens with a sample bike ride; "Export video" makes an MP4.
 ```
 
 **Data safety:**

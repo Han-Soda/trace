@@ -1,6 +1,12 @@
+---
+layout: default
+title: Privacy policy
+permalink: /privacy/
+---
+
 # Trace privacy policy
 
-[Русский](#политика-конфиденциальности-trace)
+[Русский](#ru)
 
 Effective 7 October 2026.
 
@@ -46,9 +52,11 @@ Trace isn't meant for children.
 
 Changes to this policy will be posted on this page. Questions: write to the email address on
 Trace's Google Play page, or open an issue at
-[github.com/Han-Soda/google-timeline-visualizer/issues](https://github.com/Han-Soda/google-timeline-visualizer/issues).
+[github.com/Han-Soda/trace/issues](https://github.com/Han-Soda/trace/issues).
 
 ---
+
+<a id="ru"></a>
 
 # Политика конфиденциальности Trace
 
@@ -97,4 +105,4 @@ Trace не предназначен для детей.
 
 Изменения этой политики будут опубликованы на этой странице. Вопросы: пишите на почту со
 страницы Trace в Google Play или в
-[github.com/Han-Soda/google-timeline-visualizer/issues](https://github.com/Han-Soda/google-timeline-visualizer/issues).
+[github.com/Han-Soda/trace/issues](https://github.com/Han-Soda/trace/issues).

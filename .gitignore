@@ -5,3 +5,6 @@
 *.iml
 # Shared development key, so APKs from any machine or CI run install over each other.
 !/app/debug.keystore
+# Left by building the site in docs/ by hand.
+.sass-cache/
+_site/

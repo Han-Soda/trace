@@ -326,6 +326,6 @@ class MainActivity : ComponentActivity() {
         /** What the page is called in English and Russian. */
         val TIMELINE_TITLES = listOf("Timeline", "Хронология")
         const val MAX_PICKED = 50
-        const val PRIVACY_POLICY = "https://github.com/Han-Soda/google-timeline-visualizer/blob/main/trace/PRIVACY.md"
+        const val PRIVACY_POLICY = "https://han-soda.github.io/trace/privacy/"
     }
 }

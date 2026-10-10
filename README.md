@@ -62,7 +62,7 @@ itself, so this is as close to one tap as it gets.
 Trace also reads the iPhone export, and from Google Takeout `Records.json` and the monthly
 Semantic Location History files, including the ZIP archive itself. The imported history stays
 in the app's private storage; nothing is uploaded. The only network traffic is map tiles, and
-place names for photos. See the [privacy policy](PRIVACY.md).
+place names for photos. See the [privacy policy](docs/privacy.md).
 
 ## Maps
 
@@ -124,3 +124,9 @@ from [OpenFreeMap](https://openfreemap.org) © [OpenMapTiles](https://openmaptil
 styles © [CARTO](https://carto.com/attributions). Coastlines and lakes from
 [Natural Earth](https://www.naturalearthdata.com/) (public domain); `tools/make_land_asset.py`
 rebuilds `land.bin` from it. Icons from Material Symbols (Apache 2.0).
+
+## License
+
+MIT, see [LICENSE](LICENSE). Trace grew out of
+[Timeline Visualizer](https://github.com/mahlernim/google-timeline-visualizer) by mahlernim,
+whose copyright notice stays there.

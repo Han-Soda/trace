@@ -1,0 +1,186 @@
+name: Trace
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # A run by hand makes the bundle for Google Play.
+  workflow_dispatch:
+    inputs:
+      screenshots:
+        description: Also retake the store screenshots
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Goes into the version name, e.g. 1.1-c1d4b8d, and names the APK.
+      TRACE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      # The runner image already has the Android SDK; Gradle fetches anything missing.
+      - uses: gradle/actions/setup-gradle@v5
+      # Google Play needs a bigger version code for every upload, and a release key. With the
+      # upload key in the repository's secrets, the bundle and APK are signed with it;
+      # without, with the development key, for trying out only. A run by hand stops instead:
+      # Play would take the public development key as the app's upload key.
+      - name: Version and signing
+        env:
+          UPLOAD_KEY: ${{ secrets.TRACE_UPLOAD_KEY }}
+          UPLOAD_PASSWORD: ${{ secrets.TRACE_UPLOAD_PASSWORD }}
+        run: |
+          # The first builds were uploaded to Play from another repository, with codes below 200.
+          echo "TRACE_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          if [ -n "$UPLOAD_KEY" ]; then
+            # A key pasted in part, or the wrong password, would otherwise end in an obscure
+            # Gradle error.
+            if ! printf '%s' "$UPLOAD_KEY" | base64 -di > "$RUNNER_TEMP/upload.p12" ||
+              ! keytool -list -keystore "$RUNNER_TEMP/upload.p12" -storetype PKCS12 \
+                -storepass "$UPLOAD_PASSWORD" -alias upload > /dev/null 2>&1; then
+              echo "::error::The upload key doesn't open. TRACE_UPLOAD_KEY must be the whole long line from trace-upload-key.txt, and TRACE_UPLOAD_PASSWORD the password above it."
+              exit 1
+            fi
+            {
+              echo "TRACE_KEYSTORE=$RUNNER_TEMP/upload.p12"
+              echo "TRACE_KEYSTORE_PASSWORD=$UPLOAD_PASSWORD"
+              echo "TRACE_KEY_ALIAS=upload"
+              echo "TRACE_KEY_PASSWORD=$UPLOAD_PASSWORD"
+            } >> "$GITHUB_ENV"
+          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            echo "::error::No upload key in the secrets. Add TRACE_UPLOAD_KEY and TRACE_UPLOAD_PASSWORD in Settings › Secrets and variables › Actions, then run again."
+            exit 1
+          else
+            echo "::warning::No upload key in the secrets: signed with the development key, not for Google Play."
+          fi
+      - name: Test, lint and build
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease --stacktrace
+      # One APK and one bundle for Google Play, named after their commit, so downloads from
+      # different runs can't be mixed up, with the R8 mapping for Play's crash reports.
+      - name: Name the APK and bundle after their commit
+        id: apk
+        run: |
+          name="trace-${TRACE_COMMIT::7}"
+          mkdir -p "$RUNNER_TEMP/apk"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/apk/$name.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/apk/$name.aab"
+          cp app/build/outputs/mapping/release/mapping.txt "$RUNNER_TEMP/apk/$name-mapping.txt"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ runner.temp }}/apk/*
+          if-no-files-found: error
+      # At the top of the run's page: which key signed it, and where to get the bundle.
+      - name: Sum up
+        env:
+          NAME: ${{ steps.apk.outputs.name }}
+          URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          if [ -n "$TRACE_KEYSTORE" ]; then
+            signed="Signed with the upload key: ready for Google Play."
+          else
+            signed="Signed with the development key: for trying out, not for Google Play."
+          fi
+          {
+            echo "### Trace, version code $TRACE_VERSION_CODE"
+            echo "$signed"
+            echo
+            echo "[Download $NAME]($URL): \`$NAME.aab\` is for Play Console, \`$NAME.apk\` installs on a phone."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: trace-lint
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+
+  export-on-device:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [28, 35]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Export a video on API ${{ matrix.api-level }}
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          disable-animations: true
+          script: ./gradlew connectedDebugAndroidTest --stacktrace
+
+  # Phone screenshots for the Play listing, in English and Russian, taken from the app itself
+  # with a made-up trip, at 1080 × 1920, into play-store/screenshots. Run the workflow by
+  # hand with "Also retake the store screenshots" ticked to take them.
+  store-screenshots:
+    if: github.event_name == 'workflow_dispatch' && inputs.screenshots
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Take the screenshots
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          # Whatever was taken is kept, even when the test stops part way.
+          script: >-
+            ./gradlew connectedDebugAndroidTest --stacktrace
+            -Pandroid.testInstrumentationRunnerArguments.class=io.github.hansoda.trace.StoreScreenshots
+            -Pandroid.testInstrumentationRunnerArguments.screenshots=true;
+            code=$?; adb pull /sdcard/Pictures/Trace "$RUNNER_TEMP/screenshots"; exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: store-screenshots
+          path: ${{ runner.temp }}/screenshots/*.png
+          if-no-files-found: error
+      # Kept next to the rest of the listing, where they can be looked at without downloading.
+      - name: Commit the screenshots
+        run: |
+          folder=play-store/screenshots
+          rm -rf "$folder" && mkdir -p "$folder"
+          cp "$RUNNER_TEMP"/screenshots/*.png "$folder"/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A "$folder"
+          git diff --cached --quiet && exit 0
+          # Pictures only: nothing for the other jobs to check again.
+          git commit -m "Store screenshots from run $GITHUB_RUN_NUMBER [skip ci]"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
