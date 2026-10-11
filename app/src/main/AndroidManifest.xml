@@ -15,10 +15,14 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
 
-    <!-- Finding the Timeline page that Google Play services adds to Location settings. -->
+    <!-- Finding the Timeline page that Google Play services adds to Location settings, as an
+         injected setting on older Android and as an entry of Location services on newer. -->
     <queries>
         <intent>
             <action android:name="android.location.SettingInjectorService" />
+        </intent>
+        <intent>
+            <action android:name="com.android.settings.action.IA_SETTINGS" />
         </intent>
     </queries>
 

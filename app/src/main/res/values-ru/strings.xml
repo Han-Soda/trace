@@ -4,9 +4,9 @@
     <string name="open_timeline">Открыть файл хронологии</string>
     <string name="reading_file">Чтение… %1$d%%</string>
     <string name="how_to_export_title">Как получить хронологию</string>
-    <string name="how_to_export_steps">Нажмите кнопку и выберите «Экспорт хронологии». Если откроются настройки геолокации, сначала нажмите «Хронология». Когда спросят, куда сохранить, выберите Trace в списке мест: Trace загрузит файл сам, как только вы вернётесь.</string>
+    <string name="how_to_export_steps">Нажмите кнопку. Если откроются настройки геолокации, нажмите «Сервисы геолокации» (на некоторых телефонах «Службы геолокации»), затем «Хронология» и «Экспорт хронологии». Когда спросят, куда сохранить, выберите Trace в списке мест: Trace загрузит файл сам, как только вы вернётесь.</string>
     <string name="open_timeline_settings">Экспорт из Хронологии</string>
-    <string name="export_where">Нажмите «Хронология», затем «Экспорт хронологии». На некоторых телефонах «Хронология» — внутри «Службы геолокации».</string>
+    <string name="export_where">Нажмите «Сервисы геолокации», затем «Хронология» и «Экспорт хронологии».</string>
     <string name="inbox_summary">Загрузить в Trace</string>
     <string name="how_to_export_other">Trace также читает экспорт с iPhone, Records.json и «Семантическую историю местоположений» из Google Takeout, в том числе в ZIP-архивах.</string>
     <string name="import_failed">Не удалось открыть файл</string>

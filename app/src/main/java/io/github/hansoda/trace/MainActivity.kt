@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.Uri
@@ -238,7 +239,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /** The Timeline page that Google Play services adds to Location settings, if it can be found. */
-    private fun timelinePage(): Intent? = runCatching {
+    private fun timelinePage(): Intent? = injectedTimeline() ?: locationServicesTimeline()
+
+    private fun injectedTimeline(): Intent? = runCatching {
         val injectors = packageManager.queryIntentServices(Intent(SETTING_INJECTOR).setPackage(GOOGLE_PLAY_SERVICES), PackageManager.GET_META_DATA)
         injectors.firstNotNullOfOrNull { injector ->
             val service = injector.serviceInfo
@@ -247,6 +250,28 @@ class MainActivity : ComponentActivity() {
             }?.let { (_, activity) -> Intent().setClassName(service.packageName, activity) }
         }
     }.getOrNull()
+
+    /**
+     * The Timeline entry as newer Android lists it under Location services: an activity of Google
+     * Play services that offers itself to Settings.
+     */
+    private fun locationServicesTimeline(): Intent? = runCatching {
+        packageManager.queryIntentActivities(Intent(SETTINGS_ENTRY).setPackage(GOOGLE_PLAY_SERVICES), PackageManager.GET_META_DATA)
+            .map { it.activityInfo }
+            .firstOrNull { entry ->
+                val title = runCatching { entryTitle(entry) }.getOrDefault("")
+                TIMELINE_TITLES.any { title.equals(it, ignoreCase = true) } || entry.name.contains("timeline", ignoreCase = true)
+            }
+            ?.let { Intent().setClassName(it.packageName, it.name) }
+    }.getOrNull()
+
+    /** What an entry is called: the title it gives Settings, a string of its own app or plain text, else its label. */
+    private fun entryTitle(entry: ActivityInfo): String =
+        when (val title = entry.metaData?.get(SETTINGS_TITLE)) {
+            is Int -> packageManager.getResourcesForApplication(entry.applicationInfo).getString(title)
+            is String -> title
+            else -> entry.loadLabel(packageManager).toString()
+        }
 
     /** The title and page of a setting added to Location settings, as its service describes them. */
     @SuppressLint("ResourceType") // Indices into INJECTED_ATTRIBUTES, not a styleable.
@@ -319,6 +344,8 @@ class MainActivity : ComponentActivity() {
         }
         const val GOOGLE_PLAY_SERVICES = "com.google.android.gms"
         const val SETTING_INJECTOR = "android.location.SettingInjectorService"
+        const val SETTINGS_ENTRY = "com.android.settings.action.IA_SETTINGS"
+        const val SETTINGS_TITLE = "com.android.settings.title"
 
         /** In the order obtainAttributes needs: ascending. */
         val INJECTED_ATTRIBUTES = intArrayOf(android.R.attr.title, android.R.attr.settingsActivity)
