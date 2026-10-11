@@ -85,10 +85,17 @@ No login is needed, but Trace needs a location history file to show anything. On
 Это запросы фрагментов карты и названий мест под фото. Хронология, фото и видео не покидают
 телефон, их не отмечать.
 
-**Photo and video permissions** — Describe your app's use:
+**Photo and video permissions** — два поля, в каждом не больше 250 знаков. Reading image files
+(READ_MEDIA_IMAGES):
 
 ```
-Trace makes a video of the user's trips from their location history and shows their photos and videos on the route where they were taken. "Find from these days" looks through the whole gallery for the photos and videos taken on the trip's dates and suggests them; the system photo picker can't search the gallery by date. Access is asked for only when the user taps that button. Photos can also be added one at a time with the photo picker, without the permission.
+Core feature: Trace finds the user's photos taken on the chosen trip dates and shows them on the route in the video. The photo picker can't search by date. Access is requested only when the user taps "Find from these days". Nothing is uploaded.
+```
+
+Reading video files (READ_MEDIA_VIDEO):
+
+```
+Core feature: Trace finds the user's videos taken on the chosen trip dates and shows them on the route in the video. The photo picker can't search by date. Access is requested only when the user taps "Find from these days". Nothing is uploaded.
 ```
 
 ## 6. Страница в магазине
