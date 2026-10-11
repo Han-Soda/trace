@@ -70,6 +70,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -149,6 +150,9 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
     private val placesAsked = HashSet<String>()
 
     private var importJob: Job? = null
+
+    /** Reads the history saved last time; an import waits for it, so it can't be overwritten by it. */
+    private var initialLoad: Job? = null
     private var exportJob: Job? = null
     private var exported: Uri? = null
 
@@ -249,7 +253,7 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
                 .collectLatest { namePlaces() }
         }
         tiles.apiKey = _settings.value.cartoKey
-        viewModelScope.launch {
+        initialLoad = viewModelScope.launch {
             val loaded = repository.load()
             if (loaded == null) _info.value = null
             timeline.value = loaded
@@ -286,7 +290,17 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
         importJob = viewModelScope.launch {
             _import.value = ImportState.Reading(0f)
             try {
-                val (loaded, info) = repository.import(uris) { progress -> _import.value = ImportState.Reading(progress) }
+                initialLoad?.join()
+                val progress = { done: Float -> _import.value = ImportState.Reading(done) }
+                val (loaded, info) = try {
+                    repository.import(uris, progress)
+                } catch (error: IOException) {
+                    // A read can fail part way, as when a file from the cloud is still coming down;
+                    // a second go usually works, so have it before saying the file can't be read.
+                    if (error is MalformedJsonException) throw error
+                    delay(RETRY_MS)
+                    repository.import(uris, progress)
+                }
                 timeline.value = loaded
                 _info.value = info
                 update { it.copy(days = null) }
@@ -719,6 +733,7 @@ class TraceViewModel(application: Application) : AndroidViewModel(application) {
         const val FOUND_THUMBNAIL = 256
         const val FOUND_THUMBNAILS = 300
         const val PREVIEW_FPS = 30
+        const val RETRY_MS = 1_500L
         const val MAX_UNDO = 50
     }
 }

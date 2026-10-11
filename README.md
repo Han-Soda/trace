@@ -117,6 +117,10 @@ and sums up at the top of its page which key signed the bundle, with a link to d
 *Also retake the store screenshots* to take them again, in English and Russian, into
 `play-store/screenshots`. The rest of the store listing is in [`play-store`](play-store).
 
+Tick *Also tap at random* to run [`tools/monkey.sh`](tools/monkey.sh) on Android 9 and 15:
+thousands of random taps, swipes and key presses on a fresh start and with a trip loaded, which
+fail the run on any crash or freeze.
+
 ## Credits
 
 Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors. Free styles

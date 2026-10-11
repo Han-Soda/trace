@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import io.github.hansoda.trace.data.Inbox
 import io.github.hansoda.trace.settings.AppLanguage
 import io.github.hansoda.trace.ui.ExportState
 import io.github.hansoda.trace.ui.MapPreview
@@ -55,7 +56,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        Inbox.onFinished = viewModel::importInbox
         viewModel.importInbox()
+    }
+
+    override fun onPause() {
+        Inbox.onFinished = null
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {

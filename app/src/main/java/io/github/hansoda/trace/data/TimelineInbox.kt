@@ -50,9 +50,11 @@ class TimelineInbox : DocumentsProvider() {
         val file = Inbox.file(app, documentId) ?: throw FileNotFoundException(documentId)
         val access = ParcelFileDescriptor.parseMode(mode)
         if ('w' !in mode) return ParcelFileDescriptor.open(file, access)
-        // The file is ready to import once whoever saves it has finished and closed it.
+        // The file is ready to import once whoever saves it has finished and closed it. Some apps
+        // open it more than once, first to empty it, so each opening starts the wait again.
+        Inbox.writing(app, documentId)
         return ParcelFileDescriptor.open(file, access, Handler(Looper.getMainLooper())) { error ->
-            if (error == null) Inbox.finished(app, documentId)
+            Inbox.closed(app, documentId, error == null)
         }
     }
 
@@ -98,6 +100,13 @@ class TimelineInbox : DocumentsProvider() {
 object Inbox {
     private const val FINISHED = ".finished"
 
+    /** How many writers have each file open; guarded by itself. */
+    private val writers = HashMap<String, Int>()
+
+    /** Called on the main thread when a file has been completely saved, while Trace is in front. */
+    @Volatile
+    var onFinished: (() -> Unit)? = null
+
     private fun folder(context: Context): File = File(context.filesDir, "inbox").apply { mkdirs() }
 
     /** Everything saved here, oldest first. */
@@ -126,14 +135,30 @@ object Inbox {
         return file
     }
 
-    /** Marks [name] as completely saved. */
-    fun finished(context: Context, name: String) {
-        File(folder(context), name + FINISHED).createNewFile()
+    /** Someone opened [name] to write to it: it isn't finished until they close it again. */
+    fun writing(context: Context, name: String) {
+        synchronized(writers) { writers[name] = (writers[name] ?: 0) + 1 }
+        File(folder(context), name + FINISHED).delete()
+    }
+
+    /** A writer closed [name]; when it was the last one and all went well, the file is ready. */
+    fun closed(context: Context, name: String, ok: Boolean) {
+        val last = synchronized(writers) {
+            val left = (writers[name] ?: 1) - 1
+            if (left > 0) writers[name] = left else writers.remove(name)
+            left <= 0
+        }
+        if (last && ok) {
+            File(folder(context), name + FINISHED).createNewFile()
+            onFinished?.invoke()
+        }
     }
 
     /** Completely saved files, newest first. */
-    fun waiting(context: Context): List<File> =
-        files(context).filter { it.length() > 0 && File(it.path + FINISHED).exists() }.reversed()
+    fun waiting(context: Context): List<File> {
+        val open = synchronized(writers) { writers.keys.toSet() }
+        return files(context).filter { it.length() > 0 && it.name !in open && File(it.path + FINISHED).exists() }.reversed()
+    }
 
     fun remove(files: List<File>) {
         for (file in files) {
